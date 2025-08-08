@@ -77,13 +77,23 @@ public class PackageStorageService : IPackageStorageService
         }
     }
 
-    public async Task<List<NuGetPackageInfo>> GetAllPackages()
+    public Task<List<NuGetPackageInfo>> GetAllPackages()
+    {
+        return GetPackages(includeMetadata: true);
+    }
+
+    public Task<List<NuGetPackageInfo>> GetPackagesWithMetadata()
+    {
+        return GetPackages(includeMetadata: true);
+    }
+
+    private Task<List<NuGetPackageInfo>> GetPackages(bool includeMetadata)
     {
         var result = new List<NuGetPackageInfo>();
         var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
 
         if (!Directory.Exists(_nuGetServer.PackagesPath))
-            return result;
+            return Task.FromResult(result);
 
         foreach (var idDir in Directory.GetDirectories(_nuGetServer.PackagesPath))
         {
@@ -95,58 +105,53 @@ public class PackageStorageService : IPackageStorageService
 
                 if (File.Exists(packageFile))
                 {
-                    result.Add(new NuGetPackageInfo
+                    var packageInfo = new NuGetPackageInfo
                     {
                         Id = id,
                         Version = version,
                         FileName = Path.GetFileName(packageFile),
                         DownloadUrl = $"{baseUrl}/download/{id}/{version}"
-                    });
+                    };
+
+                    if (includeMetadata)
+                    {
+                        try
+                        {
+                            using var zip = ZipFile.OpenRead(packageFile);
+                            var nuspecEntry = zip.Entries.FirstOrDefault(e => e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
+                            if (nuspecEntry != null)
+                            {
+                                using var stream = nuspecEntry.Open();
+                                var doc = XDocument.Load(stream);
+                                
+                                // Handle XML namespaces properly
+                                var rootElement = doc.Root;
+                                if (rootElement != null)
+                                {
+                                    // Get the namespace (if any) from the root element
+                                    XNamespace ns = rootElement.GetDefaultNamespace();
+                                    
+                                    // Try to find metadata element with or without namespace
+                                    var metadata = rootElement.Element(ns + "metadata") ?? rootElement.Element("metadata");
+                                    if (metadata != null)
+                                    {
+                                        packageInfo.Description = GetElementValue(metadata, ns, "description");
+                                        packageInfo.Authors = GetElementValue(metadata, ns, "authors");
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Error reading metadata for package {Id} {Version}", id, version);
+                        }
+                    }
+
+                    result.Add(packageInfo);
                 }
             }
         }
-        return result;
-    }
-
-    public async Task<List<NuGetPackageInfo>> GetPackagesWithMetadata()
-    {
-        var result = new List<NuGetPackageInfo>();
-        var basePackages = await GetAllPackages();
-
-        foreach (var pkg in basePackages)
-        {
-            string? description = null;
-            string? authors = null;
-
-            try
-            {
-                using var zip = ZipFile.OpenRead(Path.Combine(_nuGetServer.PackagesPath, pkg.Id, pkg.Version, pkg.FileName));
-                var nuspecEntry = zip.Entries.FirstOrDefault(e => e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
-                if (nuspecEntry != null)
-                {
-                    using var stream = nuspecEntry.Open();
-                    var doc = XDocument.Load(stream);
-                    description = doc.Root?.Element("metadata")?.Element("description")?.Value;
-                    authors = doc.Root?.Element("metadata")?.Element("authors")?.Value;
-                }
-            }
-            catch
-            {
-                // Ignore metadata read errors
-            }
-
-            result.Add(new NuGetPackageInfo
-            {
-                Id = pkg.Id,
-                Version = pkg.Version,
-                FileName = pkg.FileName,
-                DownloadUrl = pkg.DownloadUrl,
-                Description = description,
-                Authors = authors
-            });
-        }
-
-        return result;
+        return Task.FromResult(result);
     }
 
     public Task<List<string>> GetPackageVersions(string packageId)
@@ -167,45 +172,80 @@ public class PackageStorageService : IPackageStorageService
         return Task.FromResult(Directory.Exists(packageFolder) && Directory.GetFiles(packageFolder, "*.nupkg").Any());
     }
 
-    public async Task<NuGetPackageInfo?> GetPackageMetadata(string packageId, string version)
+    public Task<NuGetPackageInfo?> GetPackageMetadata(string packageId, string version)
     {
         var packageFolder = Path.Combine(_nuGetServer.PackagesPath, packageId, version);
         if (!Directory.Exists(packageFolder))
-            return null;
+        {
+            _logger.LogWarning("Package folder not found: {PackageFolder}", packageFolder);
+            return Task.FromResult<NuGetPackageInfo?>(null);
+        }
 
         var nupkg = Directory.GetFiles(packageFolder, "*.nupkg").FirstOrDefault();
         if (nupkg == null)
-            return null;
+        {
+            _logger.LogWarning("No .nupkg file found in folder: {PackageFolder}", packageFolder);
+            return Task.FromResult<NuGetPackageInfo?>(null);
+        }
 
         try
         {
             using var zip = ZipFile.OpenRead(nupkg);
             var nuspecEntry = zip.Entries.FirstOrDefault(e => e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase));
             if (nuspecEntry == null)
-                return null;
+            {
+                _logger.LogWarning("No .nuspec file found in package: {NupkgPath}", nupkg);
+                return Task.FromResult<NuGetPackageInfo?>(null);
+            }
 
             using var stream = nuspecEntry.Open();
             var doc = XDocument.Load(stream);
 
-            var metadata = doc.Root?.Element("metadata");
-            if (metadata == null)
-                return null;
-
-            return new NuGetPackageInfo
+            // Handle XML namespaces properly
+            var rootElement = doc.Root;
+            if (rootElement == null)
             {
-                Id = metadata.Element("id")?.Value ?? packageId,
-                Version = metadata.Element("version")?.Value ?? version,
-                Description = metadata.Element("description")?.Value,
-                Authors = metadata.Element("authors")?.Value,
+                _logger.LogWarning("Invalid XML structure in .nuspec file: {NupkgPath}", nupkg);
+                return Task.FromResult<NuGetPackageInfo?>(null);
+            }
+
+            // Get the namespace (if any) from the root element
+            XNamespace ns = rootElement.GetDefaultNamespace();
+            
+            // Try to find metadata element with or without namespace
+            var metadata = rootElement.Element(ns + "metadata") ?? rootElement.Element("metadata");
+            if (metadata == null)
+            {
+                _logger.LogWarning("No metadata element found in .nuspec file: {NupkgPath}", nupkg);
+                return Task.FromResult<NuGetPackageInfo?>(null);
+            }
+
+            // Extract metadata with namespace support
+            var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
+            
+            var result = new NuGetPackageInfo
+            {
+                Id = GetElementValue(metadata, ns, "id") ?? packageId,
+                Version = GetElementValue(metadata, ns, "version") ?? version,
+                Description = GetElementValue(metadata, ns, "description"),
+                Authors = GetElementValue(metadata, ns, "authors"),
                 FileName = Path.GetFileName(nupkg),
-                DownloadUrl = $"nuget/download/{packageId}/{version}"
+                DownloadUrl = $"{baseUrl}/download/{packageId}/{version}"
             };
+            
+            return Task.FromResult<NuGetPackageInfo?>(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error reading metadata for {PackageId} {Version}", packageId, version);
-            return null;
+            _logger.LogError(ex, "Error reading metadata for {PackageId} {Version} from {NupkgPath}", packageId, version, nupkg);
+            return Task.FromResult<NuGetPackageInfo?>(null);
         }
+    }
+
+    private static string? GetElementValue(XElement parent, XNamespace ns, string elementName)
+    {
+        // Try with namespace first, then without
+        return parent.Element(ns + elementName)?.Value ?? parent.Element(elementName)?.Value;
     }
 
     private (string packageId, string version) ExtractPackageInfo(string fileName)

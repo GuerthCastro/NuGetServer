@@ -4,7 +4,11 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.UseUrls("http://0.0.0.0:8080");
+if (!builder.Environment.IsDevelopment())
+{
+    builder.WebHost.UseUrls("http://0.0.0.0:8080");
+}
+
 
 builder.Host
     .ConfigureAppConfiguration((hostingContext, config) =>
