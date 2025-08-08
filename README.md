@@ -1,12 +1,14 @@
 # NuGet Server
 
-[![CI/CD Pipeline](https://github.com/GuerthCastro/NuGetServer/actions/workflows/ci.yml/badge.svg)](https://github.com/GuerthCastro/NuGetServer/actions/workflows/ci.yml)
-[![Security Scan](https://github.com/GuerthCastro/NuGetServer/actions/workflows/security.yml/badge.svg)](https://github.com/GuerthCastro/NuGetServer/actions/workflows/security.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/dragonflytech/nugetserver?logo=docker)](https://hub.docker.com/r/dragonflytech/nugetserver)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/9.0)
-
 A lightweight, self-hosted NuGet server built with ASP.NET Core (.NET 9). This server provides a private NuGet feed that supports pushing, searching, and downloading NuGet packages through standard NuGet client tools.
+
+---
+
+**Security Notice:**
+
+- Never commit real API keys, secrets, or credentials to this repository. Use environment variables or Docker runtime configuration for all secrets.
+- All example API keys in this documentation use `<YOUR_API_KEY>` as a placeholder. Replace with your own value at runtime.
+- This repository intentionally has **no CI/CD, build, or deployment automation**. All builds and deployments are managed by users locally (e.g., via Docker or `dotnet` CLI). See [docs/SECURITY_SETUP.md](docs/SECURITY_SETUP.md) for required manual GitHub security settings.
 
 ## ✨ Features
 
@@ -88,14 +90,14 @@ The server can be configured through `appsettings.json` or environment variables
 
 ```json
 {
-  "NuGetServer": {
-    "ApiKey": "2eb59533-6a28-4b0e-b728-52f78a40b067",
-    "PackagesPath": "/app/nuget-packages"
-  },
-  "NuGetIndex": {
-    "ServiceName": "Dragonfly NuGet Server",
-    "ServiceUrl": "http://localhost:5000/nuget"
-  }
+   "NuGetServer": {
+      "ApiKey": "<YOUR_API_KEY>",
+      "PackagesPath": "/app/nuget-packages"
+   },
+   "NuGetIndex": {
+      "ServiceName": "Dragonfly NuGet Server",
+      "ServiceUrl": "http://localhost:5000/nuget"
+   }
 }
 ```
 
@@ -134,10 +136,10 @@ The server can be configured through `appsettings.json` or environment variables
 ### Push a Package
 ```sh
 # Using NuGet CLI
-nuget push MyPackage.1.0.0.nupkg -Source http://localhost:5000/nuget/upload -ApiKey 2eb59533-6a28-4b0e-b728-52f78a40b067
+nuget push MyPackage.1.0.0.nupkg -Source http://localhost:5000/nuget/upload -ApiKey <YOUR_API_KEY>
 
 # Using dotnet CLI
-dotnet nuget push MyPackage.1.0.0.nupkg --source http://localhost:5000/nuget/upload --api-key 2eb59533-6a28-4b0e-b728-52f78a40b067
+dotnet nuget push MyPackage.1.0.0.nupkg --source http://localhost:5000/nuget/upload --api-key <YOUR_API_KEY>
 ```
 
 ### Configure NuGet Source
@@ -159,6 +161,8 @@ curl "http://localhost:5000/nuget/download/MyPackage/1.0.0" -o MyPackage.1.0.0.n
 ```
 
 ## 🐳 Docker Deployment
+
+**Note:** All builds and deployments are user-managed. This repository does not use any GitHub Actions, CI/CD, or automated build/deployment pipelines. You are responsible for building and running the server locally or in your own environment.
 
 ### Prerequisites
 - Docker installed on your system

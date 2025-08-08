@@ -1,10 +1,55 @@
-## Build output directories
+
+# Build output directories
 [Bb]in/
 [Oo]bj/
-[Ll]og/
-[Ll]ogs/
-[Oo]ut/
+TestResults/
 artifacts/
+
+# Visual Studio
+.vs/
+
+# User secrets and local environment files
+secrets.json
+*.secrets.json
+*.env
+.env
+.env.*
+
+# IDE and editor folders
+.vscode/
+.idea/
+.history/
+*.shelf/
+
+# Test results
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+!**/[Pp]ackages/*/Content/
+!**/[Pp]ackages/*/Tools/
+!**/[Pp]ackages/*/build/
+!**/[Pp]ackages/*/buildTransitive/
+
+# Azure
+.publish/
+*.azurePubxml
+*.pubxml
+*.pubxml.user
+PublishProfiles/
+
+# Logs
+*.log
+*.tlog
+
+# Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
 
 ## Visual Studio
 **.vs/

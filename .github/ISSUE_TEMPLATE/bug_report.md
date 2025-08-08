@@ -1,33 +1,32 @@
----
-name: 🐛 Bug Report
+name: Bug report
 about: Create a report to help us improve
-title: '[BUG] '
-labels: ['bug', 'needs-triage']
-assignees: ''
+labels: bug
 ---
 
-## 🐛 Bug Description
-
+**Describe the bug**
 A clear and concise description of what the bug is.
 
-## 🔄 Steps to Reproduce
-
+**To Reproduce**
 Steps to reproduce the behavior:
-
 1. Go to '...'
 2. Click on '....'
-3. Scroll down to '....'
-4. See error
+3. See error
 
-## ✅ Expected Behavior
-
+**Expected behavior**
 A clear and concise description of what you expected to happen.
 
-## ❌ Actual Behavior
+**Environment:**
+- OS: [e.g. Windows, Linux]
+- .NET Version: [e.g. 9.0]
+- Docker: [yes/no]
 
-A clear and concise description of what actually happened.
+**Additional context**
+Add any other context about the problem here.
 
-## 📷 Screenshots
+**Checklist**
+- [ ] I have not included any secrets, API keys, or credentials in this report
+- [ ] I have manually tested and confirmed the issue
+- [ ] I have checked that this issue is not a duplicate
 
 If applicable, add screenshots to help explain your problem.
 
