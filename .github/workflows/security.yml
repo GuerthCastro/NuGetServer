@@ -1,0 +1,112 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security scan daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  security-scan:
+    name: 🔒 Security Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: 📦 Restore dependencies
+      run: dotnet restore
+      
+    - name: 🔍 Check for vulnerable packages
+      run: |
+        dotnet list package --vulnerable --include-transitive > vulnerable-packages.txt
+        if grep -q "has the following vulnerable packages" vulnerable-packages.txt; then
+          echo "⚠️ Vulnerable packages found:"
+          cat vulnerable-packages.txt
+          exit 1
+        else
+          echo "✅ No vulnerable packages found"
+        fi
+        
+    - name: 🔍 Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: csharp
+        
+    - name: 🔨 Build solution
+      run: dotnet build --no-restore --configuration Release
+      
+    - name: 🔍 Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:csharp"
+
+  dependency-check:
+    name: 🔒 Dependency Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔍 Run dependency check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: 'NuGetServer'
+        path: '.'
+        format: 'SARIF'
+        output: 'dependency-check-report'
+        
+    - name: 📊 Upload dependency check results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: dependency-check-report.sarif
+
+  docker-security:
+    name: 🐳 Docker Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🏗️ Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./NuGetServer/Dockerfile
+        push: false
+        tags: nugetserver:security-scan
+        load: true
+        
+    - name: 🔍 Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'nugetserver:security-scan'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: 📊 Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'

@@ -1,0 +1,242 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  DOTNET_VERSION: '9.0.x'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    name: 🚀 Create Release
+    
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: 🏷️ Get version from tag
+      id: get_version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        
+    - name: 📋 Generate changelog
+      id: changelog
+      run: |
+        # Get the previous tag
+        PREV_TAG=$(git describe --abbrev=0 --tags HEAD^ 2>/dev/null || echo "")
+        
+        if [ -n "$PREV_TAG" ]; then
+          echo "Generating changelog from $PREV_TAG to ${{ steps.get_version.outputs.tag }}"
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..${{ steps.get_version.outputs.tag }})
+        else
+          echo "No previous tag found, generating changelog from beginning"
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)")
+        fi
+        
+        # Save changelog to file to preserve formatting
+        echo "$CHANGELOG" > changelog.md
+        
+    - name: 🚀 Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.tag }}
+        release_name: NuGet Server ${{ steps.get_version.outputs.version }}
+        body: |
+          🚀 **NuGet Server v${{ steps.get_version.outputs.version }}**
+          
+          ## What's Changed
+          
+          $(cat changelog.md)
+          
+          ## 🐳 Docker Image
+          
+          ```bash
+          docker pull dragonflytech/nugetserver:${{ steps.get_version.outputs.version }}
+          docker pull dragonflytech/nugetserver:latest
+          ```
+          
+          ## 📦 Installation
+          
+          ### Using Docker (Recommended)
+          
+          ```bash
+          docker run -d \
+            --name nugetserver \
+            -p 5000:8080 \
+            -v /path/to/packages:/app/nuget-packages \
+            dragonflytech/nugetserver:${{ steps.get_version.outputs.version }}
+          ```
+          
+          ### Using Release Archive
+          
+          1. Download the release archive below
+          2. Extract to your desired location
+          3. Configure `appsettings.json`
+          4. Run with `dotnet NuGetServer.dll`
+          
+          ## 🔧 Configuration
+          
+          Update your `appsettings.json`:
+          
+          ```json
+          {
+            "NuGetServer": {
+              "ApiKey": "your-secure-api-key",
+              "PackagesPath": "/app/nuget-packages"
+            }
+          }
+          ```
+          
+          ## 📚 Documentation
+          
+          - [Getting Started Guide](https://github.com/GuerthCastro/NuGetServer/blob/main/README.md)
+          - [Configuration Reference](https://github.com/GuerthCastro/NuGetServer/blob/main/README.md#configuration)
+          - [Docker Deployment](https://github.com/GuerthCastro/NuGetServer/blob/main/README.md#docker-deployment)
+          
+          ---
+          
+          **Full Changelog**: https://github.com/GuerthCastro/NuGetServer/compare/${{ steps.get_version.outputs.tag }}
+        draft: false
+        prerelease: ${{ contains(steps.get_version.outputs.version, '-') }}
+
+  build-and-upload:
+    runs-on: ${{ matrix.os }}
+    name: 🔨 Build ${{ matrix.name }}
+    needs: create-release
+    
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux x64
+            runtime: linux-x64
+          - os: windows-latest
+            name: Windows x64
+            runtime: win-x64
+          - os: macos-latest
+            name: macOS x64
+            runtime: osx-x64
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: 🏷️ Get version from tag
+      id: get_version
+      shell: bash
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: 📦 Restore dependencies
+      run: dotnet restore
+      
+    - name: 🔨 Build and publish
+      run: |
+        dotnet publish NuGetServer/NuGetServer.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./publish/${{ matrix.runtime }} \
+          -p:PublishSingleFile=true \
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          
+    - name: 📦 Create release archive
+      shell: bash
+      run: |
+        cd publish/${{ matrix.runtime }}
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          7z a -tzip ../../nugetserver-${{ steps.get_version.outputs.version }}-${{ matrix.runtime }}.zip *
+        else
+          tar -czf ../../nugetserver-${{ steps.get_version.outputs.version }}-${{ matrix.runtime }}.tar.gz *
+        fi
+        cd ../..
+        
+    - name: 📤 Upload Windows Release Asset
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./nugetserver-${{ steps.get_version.outputs.version }}-${{ matrix.runtime }}.zip
+        asset_name: nugetserver-${{ steps.get_version.outputs.version }}-${{ matrix.runtime }}.zip
+        asset_content_type: application/zip
+        
+    - name: 📤 Upload Unix Release Asset
+      if: matrix.os != 'windows-latest'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./nugetserver-${{ steps.get_version.outputs.version }}-${{ matrix.runtime }}.tar.gz
+        asset_name: nugetserver-${{ steps.get_version.outputs.version }}-${{ matrix.runtime }}.tar.gz
+        asset_content_type: application/gzip
+
+  docker-release:
+    runs-on: ubuntu-latest
+    name: 🐳 Docker Release
+    needs: create-release
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🏷️ Get version from tag
+      id: get_version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🔑 Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: 📦 Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKER_USERNAME }}/nugetserver
+        tags: |
+          type=ref,event=tag
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest
+          
+    - name: 🏗️ Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./NuGetServer/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64,linux/arm64
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
