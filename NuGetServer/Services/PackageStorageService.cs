@@ -150,8 +150,8 @@ public class PackageStorageService : IPackageStorageService
                     result.Add(packageInfo);
                 }
             }
-        }
-        return Task.FromResult(result);
+        }        
+        return Task.FromResult(result.OrderByDescending(i => i.Version).ToList());
     }
 
     public Task<List<string>> GetPackageVersions(string packageId)
