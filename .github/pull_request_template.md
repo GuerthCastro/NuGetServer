@@ -1,32 +1,14 @@
-# Pull Request
+# Pull Request Checklist
 
-## 📋 Description
+- [ ] No secrets, API keys, or credentials are present in this PR
+- [ ] My branch is up to date with `main`
+- [ ] Documentation is updated as needed
+- [ ] I have manually tested all changes locally
+- [ ] I have included notes below about manual testing
 
-### What does this PR do?
-<!-- Provide a clear and concise description of the changes -->
+## Manual Test Notes
 
-### Related Issue(s)
-<!-- Link to related issues -->
-- Fixes #(issue_number)
-- Closes #(issue_number)
-- Related to #(issue_number)
-
-## 🔄 Type of Change
-
-<!-- Mark the relevant option(s) with an "x" -->
-
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] ✨ New feature (non-breaking change which adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📚 Documentation update
-- [ ] 🔧 Maintenance (dependency updates, code cleanup, etc.)
-- [ ] 🧪 Test improvements
-- [ ] 🚀 Performance improvement
-
-## 🧪 Testing
-
-### How has this been tested?
-<!-- Describe the tests that you ran to verify your changes -->
+_Describe how you tested this PR locally. Include Docker or .NET commands, and any relevant output or screenshots._
 
 - [ ] Unit tests pass locally
 - [ ] Integration tests pass locally
