@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🚀 Discussions
+    url: https://github.com/GuerthCastro/NuGetServer/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 🐳 Docker Hub
+    url: https://hub.docker.com/r/dragonflytech/nugetserver
+    about: Official Docker images and deployment information
+  - name: 📖 Documentation
+    url: https://github.com/GuerthCastro/NuGetServer/blob/main/README.md
+    about: Complete documentation and setup guides
