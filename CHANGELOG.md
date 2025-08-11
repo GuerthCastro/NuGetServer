@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2025-08-15
+
 ### Added
 - Initial release of NuGet Server
 - NuGet v3 API protocol support
@@ -24,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- 🐛 Fixed NuGet v3 service index format with proper @context property
+- 🔄 Changed service type names to PascalCase for better compatibility
+- 🔍 Added query endpoint to complement the search endpoint (required by Visual Studio)
+- 🧩 Configured JSON serialization to maintain @ symbols in property names
+- 📦 Modified metadata controller route from "v3/metadata" to "v3/registrations"
+- 📋 Improved search response to include all package versions, not just the latest one
+- 🔢 Fixed version history display in Visual Studio and nuget.exe by adding download count to versions
 
 ### Security
 
