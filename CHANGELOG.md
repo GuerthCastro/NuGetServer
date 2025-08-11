@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 📦 Modified metadata controller route from "v3/metadata" to "v3/registrations"
 - 📋 Improved search response to include all package versions, not just the latest one
 - 🔢 Fixed version history display in Visual Studio and nuget.exe by adding download count to versions
+- 🗃️ Updated list endpoint to group packages by ID with proper version history
 
 ### Security
 
