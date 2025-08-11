@@ -12,6 +12,7 @@ public class PackageStorageService : IPackageStorageService
     private readonly Entities.Config.NuGetServer _nuGetServer;
     private readonly NuGetIndex _nuGetIndex;
     private static readonly Regex versionRegex = new(@"(?<version>\d+\.\d+\.\d+(-[0-9A-Za-z\-.]+)?)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly string DOWNLOAD_STATS_FILE = "download_stats.json";
 
     public PackageStorageService(ILogger<PackageStorageService> logger, Entities.Config.NuGetServer nuGetServer, NuGetIndex nuGetIndex)
     {
@@ -55,8 +56,76 @@ public class PackageStorageService : IPackageStorageService
         var packagePath = Directory.GetFiles(packageFolder, "*.nupkg").FirstOrDefault();
         if (packagePath == null) return (null, null);
 
+        // Increment download count
+        await IncrementDownloadCount(packageId, version);
+
         var stream = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         return (stream, "application/octet-stream");
+    }
+    
+    private async Task IncrementDownloadCount(string packageId, string version)
+    {
+        try 
+        {
+            var statsFile = Path.Combine(_nuGetServer.PackagesPath, DOWNLOAD_STATS_FILE);
+            var stats = await LoadDownloadStats();
+            
+            var packageStat = stats.FirstOrDefault(s => 
+                string.Equals(s.Id, packageId, StringComparison.OrdinalIgnoreCase) && 
+                string.Equals(s.Version, version, StringComparison.OrdinalIgnoreCase));
+                
+            if (packageStat == null)
+            {
+                packageStat = new PackageDownloadStats 
+                { 
+                    Id = packageId, 
+                    Version = version, 
+                    DownloadCount = 1 
+                };
+                stats.Add(packageStat);
+            }
+            else
+            {
+                packageStat.DownloadCount++;
+            }
+            
+            await SaveDownloadStats(stats);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to increment download count for {PackageId} {Version}", packageId, version);
+        }
+    }
+    
+    private async Task<List<PackageDownloadStats>> LoadDownloadStats()
+    {
+        var statsFile = Path.Combine(_nuGetServer.PackagesPath, DOWNLOAD_STATS_FILE);
+        if (!File.Exists(statsFile))
+        {
+            return new List<PackageDownloadStats>();
+        }
+        
+        try
+        {
+            var json = await File.ReadAllTextAsync(statsFile);
+            return System.Text.Json.JsonSerializer.Deserialize<List<PackageDownloadStats>>(json) 
+                ?? new List<PackageDownloadStats>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load download stats");
+            return new List<PackageDownloadStats>();
+        }
+    }
+    
+    private async Task SaveDownloadStats(List<PackageDownloadStats> stats)
+    {
+        var statsFile = Path.Combine(_nuGetServer.PackagesPath, DOWNLOAD_STATS_FILE);
+        var json = System.Text.Json.JsonSerializer.Serialize(stats, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+        await File.WriteAllTextAsync(statsFile, json);
     }
 
     public Task<bool> DeletePackage(string packageId, string version)
@@ -87,13 +156,16 @@ public class PackageStorageService : IPackageStorageService
         return GetPackages(includeMetadata: true);
     }
 
-    private Task<List<NuGetPackageInfo>> GetPackages(bool includeMetadata)
+    private async Task<List<NuGetPackageInfo>> GetPackages(bool includeMetadata)
     {
         var result = new List<NuGetPackageInfo>();
         var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
+        
+        // Load download stats
+        var stats = await LoadDownloadStats();
 
         if (!Directory.Exists(_nuGetServer.PackagesPath))
-            return Task.FromResult(result);
+            return result;
 
         foreach (var idDir in Directory.GetDirectories(_nuGetServer.PackagesPath))
         {
@@ -105,12 +177,19 @@ public class PackageStorageService : IPackageStorageService
 
                 if (File.Exists(packageFile))
                 {
+                    var downloadCount = stats
+                        .FirstOrDefault(s => 
+                            string.Equals(s.Id, id, StringComparison.OrdinalIgnoreCase) && 
+                            string.Equals(s.Version, version, StringComparison.OrdinalIgnoreCase))
+                        ?.DownloadCount ?? 0;
+                        
                     var packageInfo = new NuGetPackageInfo
                     {
                         Id = id,
                         Version = version,
                         FileName = Path.GetFileName(packageFile),
-                        DownloadUrl = $"{baseUrl}/download/{id}/{version}"
+                        DownloadUrl = $"{baseUrl}/download/{id}/{version}",
+                        DownloadCount = downloadCount
                     };
 
                     if (includeMetadata)
@@ -172,20 +251,20 @@ public class PackageStorageService : IPackageStorageService
         return Task.FromResult(Directory.Exists(packageFolder) && Directory.GetFiles(packageFolder, "*.nupkg").Any());
     }
 
-    public Task<NuGetPackageInfo?> GetPackageMetadata(string packageId, string version)
+    public async Task<NuGetPackageInfo?> GetPackageMetadata(string packageId, string version)
     {
         var packageFolder = Path.Combine(_nuGetServer.PackagesPath, packageId, version);
         if (!Directory.Exists(packageFolder))
         {
             _logger.LogWarning("Package folder not found: {PackageFolder}", packageFolder);
-            return Task.FromResult<NuGetPackageInfo?>(null);
+            return null;
         }
 
         var nupkg = Directory.GetFiles(packageFolder, "*.nupkg").FirstOrDefault();
         if (nupkg == null)
         {
             _logger.LogWarning("No .nupkg file found in folder: {PackageFolder}", packageFolder);
-            return Task.FromResult<NuGetPackageInfo?>(null);
+            return null;
         }
 
         try
@@ -195,7 +274,7 @@ public class PackageStorageService : IPackageStorageService
             if (nuspecEntry == null)
             {
                 _logger.LogWarning("No .nuspec file found in package: {NupkgPath}", nupkg);
-                return Task.FromResult<NuGetPackageInfo?>(null);
+                return null;
             }
 
             using var stream = nuspecEntry.Open();
@@ -206,7 +285,7 @@ public class PackageStorageService : IPackageStorageService
             if (rootElement == null)
             {
                 _logger.LogWarning("Invalid XML structure in .nuspec file: {NupkgPath}", nupkg);
-                return Task.FromResult<NuGetPackageInfo?>(null);
+                return null;
             }
 
             // Get the namespace (if any) from the root element
@@ -217,8 +296,16 @@ public class PackageStorageService : IPackageStorageService
             if (metadata == null)
             {
                 _logger.LogWarning("No metadata element found in .nuspec file: {NupkgPath}", nupkg);
-                return Task.FromResult<NuGetPackageInfo?>(null);
+                return null;
             }
+
+            // Load download stats
+            var stats = await LoadDownloadStats();
+            var downloadCount = stats
+                .FirstOrDefault(s => 
+                    string.Equals(s.Id, packageId, StringComparison.OrdinalIgnoreCase) && 
+                    string.Equals(s.Version, version, StringComparison.OrdinalIgnoreCase))
+                ?.DownloadCount ?? 0;
 
             // Extract metadata with namespace support
             var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
@@ -230,10 +317,11 @@ public class PackageStorageService : IPackageStorageService
                 Description = GetElementValue(metadata, ns, "description"),
                 Authors = GetElementValue(metadata, ns, "authors"),
                 FileName = Path.GetFileName(nupkg),
-                DownloadUrl = $"{baseUrl}/download/{packageId}/{version}"
+                DownloadUrl = $"{baseUrl}/download/{packageId}/{version}",
+                DownloadCount = downloadCount
             };
             
-            return Task.FromResult<NuGetPackageInfo?>(result);
+            return result;
         }
         catch (Exception ex)
         {
