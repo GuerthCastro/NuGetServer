@@ -35,6 +35,9 @@ This document tracks immediate development tasks, bug fixes, and improvements fo
 - [ ] **Code quality analysis** - SonarQube or similar integration
 
 ### Features & Enhancements
+- [x] **Fixed NuGet v3 compatibility** - Properly formatted service index with @context property
+- [x] **Added query endpoint** - Required by Visual Studio for package discovery
+- [x] **Improved package version display** - Show all versions in search results
 - [ ] **Configuration validation** - Validate settings on startup
 - [ ] **Better error handling** - Standardize error responses
 - [ ] **Logging improvements** - Structured logging with correlation IDs

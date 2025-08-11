@@ -1,6 +1,10 @@
 using NuGetServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NuGetServer.Entities.DTO;
+using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json;
 
 namespace NuGetServer.Controllers;
 
@@ -34,40 +38,45 @@ public class PackageMetadataController : ControllerBase
             var packageBaseUrl = $"{baseUrl}/v3/registrations/{id}";
             var lowerId = id.ToLowerInvariant();
             
-            var response = new
+            var registrationItems = versions.Select(v => new PackageItem
             {
-                @context = new
+                Id = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json",
+                Type = "Package",
+                CatalogEntry = new PackageCatalogEntry
                 {
-                    vocab = "http://schema.nuget.org/schema#",
-                    @base = baseUrl
+                    Id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
+                    Type = "PackageDetails",
+                    Authors = "",
+                    PackageId = id,
+                    Version = v,
+                    Description = "",
+                    Title = id
                 },
-                @id = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
-                @type = "catalog:CatalogRoot",
-                count = versions.Count,
-                items = new[]
+                PackageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
+            }).ToList();
+
+            var response = new PackageRegistration
+            {
+                Id = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+                Type = "catalog:CatalogRoot",
+                Context = new RegistrationContext
                 {
-                    new
+                    Vocab = "http://schema.nuget.org/schema#",
+                    Base = baseUrl
+                },
+                Count = versions.Count,
+                Items = new List<RegistrationPage>
+                {
+                    new RegistrationPage
                     {
-                        @id = $"{baseUrl}/v3/registrations/{lowerId}/page/0.json",
-                        @type = "catalog:CatalogPage",
-                        count = versions.Count,
-                        lower = versions.OrderBy(v => v).FirstOrDefault(),
-                        upper = versions.OrderByDescending(v => v).FirstOrDefault(),
-                        items = versions.Select(v => new
-                        {
-                            @id = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json",
-                            @type = "Package",
-                            catalogEntry = new
-                            {
-                                @id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
-                                @type = "PackageDetails",
-                                authors = "",
-                                id = id,
-                                version = v,
-                                description = "",
-                                title = id
-                            },
-                            packageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
+                        Id = $"{baseUrl}/v3/registrations/{lowerId}/page/0.json",
+                        Type = "catalog:CatalogPage",
+                        Count = versions.Count,
+                        Lower = versions.OrderBy(v => v).FirstOrDefault() ?? "",
+                        Upper = versions.OrderByDescending(v => v).FirstOrDefault() ?? "",
+                        Items = registrationItems
+                    }
+                }
                             registration = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json"
                         }).ToArray()
                     }
@@ -97,33 +106,29 @@ public class PackageMetadataController : ControllerBase
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
             var lowerId = id.ToLowerInvariant();
             
-            var response = new
+            var catalogEntry = new PackageCatalogEntry
             {
-                @context = new
+                Id = $"{baseUrl}/v3/catalog/{lowerId}/{version}.json",
+                Type = "PackageDetails",
+                Authors = metadata.Authors ?? "",
+                Description = metadata.Description ?? "",
+                PackageId = metadata.Id,
+                Title = metadata.Id,
+                Version = metadata.Version
+            };
+
+            var response = new PackageMetadata
+            {
+                Id = $"{baseUrl}/v3/registrations/{lowerId}/{version}.json",
+                Type = "Package",
+                Context = new RegistrationContext
                 {
-                    vocab = "http://schema.nuget.org/schema#",
-                    base = baseUrl
+                    Vocab = "http://schema.nuget.org/schema#",
+                    Base = baseUrl
                 },
-                @id = $"{baseUrl}/v3/registrations/{lowerId}/{version}.json",
-                @type = "Package",
-                catalogEntry = new
-                {
-                    @id = $"{baseUrl}/v3/catalog/{lowerId}/{version}.json",
-                    @type = "PackageDetails",
-                    authors = metadata.Authors ?? "",
-                    description = metadata.Description ?? "",
-                    id = metadata.Id,
-                    title = metadata.Id,
-                    version = metadata.Version,
-                    summary = metadata.Description ?? "",
-                    tags = new string[] { },
-                    packageTypes = new[] { new { name = "Dependency", version = "" } },
-                    licenseUrl = "",
-                    projectUrl = "",
-                    iconUrl = ""
-                },
-                packageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{version}/{lowerId}.{version}.nupkg",
-                registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json"
+                CatalogEntry = catalogEntry,
+                PackageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{version}/{lowerId}.{version}.nupkg",
+                Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json"
             };
 
             return Ok(response);
