@@ -38,22 +38,39 @@ public class PackageMetadataController : ControllerBase
             var packageBaseUrl = $"{baseUrl}/v3/registrations/{id}";
             var lowerId = id.ToLowerInvariant();
             
-            var registrationItems = versions.Select(v => new PackageItem
+            // Fetch actual package info with metadata and download counts
+            var latestVersion = versions.OrderByDescending(v => v).FirstOrDefault() ?? "";
+            var registrationItemTasks = versions.Select(async v => 
             {
-                Id = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json",
-                Type = "Package",
-                CatalogEntry = new PackageCatalogEntry
+                var metadata = await _packageStorageService.GetPackageMetadata(id, v);
+                return new PackageItem
                 {
-                    Id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
-                    Type = "PackageDetails",
-                    Authors = "",
-                    PackageId = id,
-                    Version = v,
-                    Description = "",
-                    Title = id
-                },
-                PackageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
+                    Id = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json",
+                    Type = "Package",
+                    CatalogEntry = new PackageCatalogEntry
+                    {
+                        Id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
+                        Type = "PackageDetails",
+                        Authors = metadata?.Authors ?? "",
+                        PackageId = id,
+                        Version = v,
+                        Description = metadata?.Description ?? "",
+                        Title = id,
+                        Summary = metadata?.Description ?? "",
+                        IsLatestVersion = (v == latestVersion), // Only the latest version is marked as latest
+                        Listed = true, // All versions are listed
+                        Downloads = metadata?.DownloadCount ?? 0 // Use actual download count
+                    },
+                    PackageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
+                };
             }).ToList();
+            
+            // Wait for all metadata to be fetched
+            var registrationItems = new List<PackageItem>();
+            foreach (var task in registrationItemTasks)
+            {
+                registrationItems.Add(await task);
+            }
 
             var response = new PackageRegistration
             {

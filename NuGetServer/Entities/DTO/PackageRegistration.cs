@@ -94,6 +94,18 @@ namespace NuGetServer.Entities.DTO
 
         [JsonProperty("title")]
         public string Title { get; set; } = string.Empty;
+        
+        [JsonProperty("summary")]
+        public string Summary { get; set; } = string.Empty;
+        
+        [JsonProperty("isLatestVersion")]
+        public bool IsLatestVersion { get; set; } = true;
+        
+        [JsonProperty("listed")]
+        public bool Listed { get; set; } = true;
+        
+        [JsonProperty("downloads")]
+        public int Downloads { get; set; }
     }
 
     [ExcludeFromCodeCoverage]
