@@ -77,10 +77,6 @@ public class PackageMetadataController : ControllerBase
                         Items = registrationItems
                     }
                 }
-                            registration = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json"
-                        }).ToArray()
-                    }
-                }
             };
 
             return Ok(response);
