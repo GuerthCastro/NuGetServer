@@ -84,8 +84,37 @@ public class PackageSearchController : ControllerBase
     {
         try
         {
-            var packages = await _packageStorageService.GetAllPackages();
-            return Ok(new { totalHits = packages.Count, data = packages });
+            var allPackages = await _packageStorageService.GetPackagesWithMetadata();
+            
+            // Group packages by ID to collect all versions
+            var packagesByIdWithVersions = allPackages
+                .GroupBy(p => p.Id)
+                .ToDictionary(
+                    g => g.Key, 
+                    g => g.OrderByDescending(p => p.Version).ToList()
+                );
+                
+            return Ok(new
+            {
+                totalHits = packagesByIdWithVersions.Count,
+                data = packagesByIdWithVersions.Keys.Select(id =>
+                {
+                    var packageVersions = packagesByIdWithVersions[id];
+                    var latestPackage = packageVersions.First(); // Already sorted by version desc
+                    
+                    return new
+                    {
+                        id = latestPackage.Id,
+                        version = latestPackage.Version,
+                        description = latestPackage.Description ?? "",
+                        authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(','),
+                        versions = packageVersions.Select(p => new { 
+                            version = p.Version,
+                            downloads = 0
+                        }).ToArray()
+                    };
+                })
+            });
         }
         catch (Exception ex)
         {
