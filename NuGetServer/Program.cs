@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 if (!builder.Environment.IsDevelopment())
 {
-    builder.WebHost.UseUrls("http://0.0.0.0:8080");
+     builder.WebHost.UseUrls("http://0.0.0.0:8080;https://0.0.0.0:8081");
 }
 
 
@@ -36,7 +36,7 @@ builder.Host
         serviceConfig.Environment = builder.Environment.EnvironmentName;
         serviceConfig.ServiceVersion = Environment.GetEnvironmentVariable("BUILD_VERSION") ?? "1.0.0.0";
 
-        services.AddControllers();
+        services.AddControllers().AddNewtonsoftJson();
 
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(c =>

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace NuGetServer.Controllers;
 
 [ApiController]
-[Route("nuget/metadata")]
+[Route("v3/metadata")]
 public class PackageMetadataController : ControllerBase
 {
     private readonly IPackageStorageService _packageStorageService;

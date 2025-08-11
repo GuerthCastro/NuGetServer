@@ -9,6 +9,9 @@ namespace NuGetServer.Entities.DTO
         [JsonProperty("version")]
         public string Version { get; set; } = "3.0.0";
 
+        [JsonProperty("@context")]
+        public ServiceIndexContext Context { get; set; } = new ServiceIndexContext();
+
         [JsonProperty("resources")]
         public List<ServiceResource> Resources { get; set; } = new();
     }

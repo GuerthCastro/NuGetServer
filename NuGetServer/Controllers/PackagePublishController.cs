@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace NuGetServer.Controllers;
 
 [ApiController]
-[Route("nuget")]
+[Route("v3")]
 public class PackagePublishController : ControllerBase
 {
     private readonly ILogger<PackagePublishController> _logger;

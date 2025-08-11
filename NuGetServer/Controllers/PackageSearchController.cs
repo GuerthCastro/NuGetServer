@@ -10,7 +10,8 @@ using Newtonsoft.Json;
 namespace NuGetServer.Controllers;
 
 [ApiController]
-[Route("nuget")]
+// Route for /v3 and /v3/
+[Route("v3")]
 public class PackageSearchController : ControllerBase
 {
     private readonly ILogger<PackageSearchController> _logger;
@@ -26,25 +27,53 @@ public class PackageSearchController : ControllerBase
         _packageStorageService = packageStorageService;
     }
 
+
     [AllowAnonymous]
+    [HttpHead("index.json")]
+    public IActionResult HeadIndex()
+    {
+        Response.ContentType = "application/json";
+        return Ok();
+    }
+
+    [AllowAnonymous]
+    [HttpHead("search")]
+    public IActionResult HeadSearch()
+    {
+        Response.ContentType = "application/json";
+        return Ok();
+    }
+
+    [AllowAnonymous]
+    [HttpHead("autocomplete")]
+    public IActionResult HeadAutocomplete()
+    {
+        Response.ContentType = "application/json";
+        return Ok();
+    }
+
+
+    [AllowAnonymous]
+    [HttpGet("")]
     [HttpGet("index.json")]
     public IActionResult GetIndex()
     {
         var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
-
         var index = new ServiceIndex
         {
             Resources = new()
             {
-                new() { Id = $"{baseUrl}/nuget/v3-flatcontainer/", Type = "PackageBaseAddress/3.0.0" },
-                new() { Id = $"{baseUrl}/nuget/registrations/",    Type = "RegistrationsBaseUrl/3.6.0" },
-                new() { Id = $"{baseUrl}/nuget/query",             Type = "SearchQueryService/3.5.0" },
-                new() { Id = $"{baseUrl}/nuget/autocomplete",      Type = "SearchAutocompleteService/3.5.0" },
-                new() { Id = $"{baseUrl}/nuget/upload",            Type = "PackagePublish/2.0.0" }
+                new() { Id = $"{baseUrl}/v3/v3-flatcontainer/", Type = "PackageBaseAddress/3.0.0" },
+                new() { Id = $"{baseUrl}/v3/registrations/",    Type = "RegistrationsBaseUrl/3.6.0" },
+                new() { Id = $"{baseUrl}/v3/query",             Type = "SearchQueryService/3.0.0-beta" },
+                new() { Id = $"{baseUrl}/v3/query",             Type = "SearchQueryService" },
+                new() { Id = $"{baseUrl}/v3/autocomplete",      Type = "SearchAutocompleteService/3.0.0-beta" },
+                new() { Id = $"{baseUrl}/v3/autocomplete",      Type = "SearchAutocompleteService" },
+                new() { Id = $"{baseUrl}/v3/upload",            Type = "PackagePublish/2.0.0" }
             }
         };
 
-        return Ok(JsonConvert.SerializeObject(index));
+        return Ok(index);
     }
 
     [AllowAnonymous]
@@ -64,7 +93,7 @@ public class PackageSearchController : ControllerBase
     }
 
     [AllowAnonymous]
-    [HttpGet("search")]
+    [HttpGet("query")]
     public async Task<IActionResult> SearchPackages(
         [FromQuery(Name = "q")] string? q = null,
         [FromQuery(Name = "skip")] int skip = 0,
