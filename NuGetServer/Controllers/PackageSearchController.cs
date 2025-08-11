@@ -100,28 +100,57 @@ public class PackageSearchController : ControllerBase
         [FromQuery(Name = "take")] int take = 20,
         [FromQuery(Name = "prerelease")] bool prerelease = false)
     {
-        var packages = await _packageStorageService.GetPackagesWithMetadata();
-
-        if (!string.IsNullOrWhiteSpace(q))
-            packages = packages.Where(p => p.Id.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        if (!prerelease)
-            packages = packages.Where(p => !p.Version.Contains('-')).ToList();
-
-        var paginated = packages.Skip(skip).Take(take).ToList();
-
-        return Ok(new
+        try
         {
-            totalHits = packages.Count,
-            data = paginated.Select(p => new
+            // Get all packages with metadata
+            var allPackages = await _packageStorageService.GetPackagesWithMetadata();
+
+            // Filter by query if provided
+            if (!string.IsNullOrWhiteSpace(q))
+                allPackages = allPackages.Where(p => p.Id.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            // Filter out prereleases if not requested
+            if (!prerelease)
+                allPackages = allPackages.Where(p => !p.Version.Contains('-')).ToList();
+
+            // Group packages by ID to collect all versions
+            var packagesByIdWithVersions = allPackages
+                .GroupBy(p => p.Id)
+                .ToDictionary(
+                    g => g.Key, 
+                    g => g.OrderByDescending(p => p.Version).ToList()
+                );
+
+            // Create paginated result with full version history
+            var paginated = packagesByIdWithVersions.Keys
+                .Skip(skip)
+                .Take(take)
+                .ToList();
+
+            return Ok(new
             {
-                id = p.Id,
-                version = p.Version,
-                versions = new[] { new { version = p.Version } },
-                description = p.Description ?? "",
-                authors = string.IsNullOrEmpty(p.Authors) ? Array.Empty<string>() : p.Authors.Split(',')
-            })
-        });
+                totalHits = packagesByIdWithVersions.Count,
+                data = paginated.Select(id => 
+                {
+                    var packageVersions = packagesByIdWithVersions[id];
+                    var latestPackage = packageVersions.First(); // Already sorted by version desc
+                    
+                    return new
+                    {
+                        id = latestPackage.Id,
+                        version = latestPackage.Version,
+                        versions = packageVersions.Select(p => new { version = p.Version }).ToArray(),
+                        description = latestPackage.Description ?? "",
+                        authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(',')
+                    };
+                })
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in search endpoint: {Message}", ex.Message);
+            return Problem(detail: ex.Message, statusCode: 500, title: "Internal Server Error");
+        }
     }
 
     [AllowAnonymous]
