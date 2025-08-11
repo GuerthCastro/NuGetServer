@@ -5,6 +5,7 @@ using NuGetServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Xml.Linq;
+using Newtonsoft.Json;
 
 namespace NuGetServer.Controllers;
 
@@ -31,19 +32,19 @@ public class PackageSearchController : ControllerBase
     {
         var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
 
-        var index = new
+        var index = new ServiceIndex
         {
-            version = "3.0.0",
-            resources = new[]
+            Resources = new()
             {
-                new { @id = $"{baseUrl}/nuget/v3-flatcontainer/", @type = "PackageBaseAddress/3.0.0" },
-                new { @id = $"{baseUrl}/nuget/upload", @type = "PackagePublish/2.0.0" },
-                new { @id = $"{baseUrl}/nuget/search", @type = "SearchQueryService/3.0.0-beta" },
-                new { @id = $"{baseUrl}/nuget/autocomplete", @type = "SearchAutocompleteService/3.0.0-beta" }
+                new() { Id = $"{baseUrl}/nuget/v3-flatcontainer/", Type = "PackageBaseAddress/3.0.0" },
+                new() { Id = $"{baseUrl}/nuget/registrations/",    Type = "RegistrationsBaseUrl/3.6.0" },
+                new() { Id = $"{baseUrl}/nuget/query",             Type = "SearchQueryService/3.5.0" },
+                new() { Id = $"{baseUrl}/nuget/autocomplete",      Type = "SearchAutocompleteService/3.5.0" },
+                new() { Id = $"{baseUrl}/nuget/upload",            Type = "PackagePublish/2.0.0" }
             }
         };
 
-        return Ok(index);
+        return Ok(JsonConvert.SerializeObject(index));
     }
 
     [AllowAnonymous]

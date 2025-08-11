@@ -2,6 +2,7 @@ using NuGetServer.Entities.Config;
 using NuGetServer.Services;
 using Microsoft.OpenApi.Models;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 if (!builder.Environment.IsDevelopment())
@@ -35,10 +36,7 @@ builder.Host
         serviceConfig.Environment = builder.Environment.EnvironmentName;
         serviceConfig.ServiceVersion = Environment.GetEnvironmentVariable("BUILD_VERSION") ?? "1.0.0.0";
 
-        services.AddControllers().AddJsonOptions(options =>
-        {
-            options.JsonSerializerOptions.PropertyNamingPolicy = null;
-        });
+        services.AddControllers();
 
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(c =>
