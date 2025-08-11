@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenAPI/Swagger documentation
 - Health check endpoints
 - Configurable storage and API keys
+- Raspberry Pi deployment guide with SSL certificate setup
 
 ### Changed
 

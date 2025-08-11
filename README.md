@@ -14,7 +14,7 @@ A lightweight, self-hosted NuGet server built with ASP.NET Core (.NET 9). This s
 
 - 📦 **Push (publish) NuGet packages** via standard NuGet client
 - 🔍 **Search and retrieve package metadata** with full text search
-- 🌐 **Compatible with NuGet v3 API** protocol
+- 🌐 **Compatible with NuGet v3 API** protocol (Visual Studio and nuget.exe supported)
 - 📖 **OpenAPI/Swagger documentation** for easy API exploration
 - 🐳 **Docker support** with multi-stage builds
 - 🔧 **Configurable storage paths** and API keys
@@ -118,10 +118,11 @@ The server can be configured through `appsettings.json` or environment variables
 | `/nuget/download/{id}/{version}`         | GET    | Download a specific package           |
 | `/nuget/index.json`                      | GET    | Service index (NuGet v3 protocol)     |
 | `/nuget/search`                          | GET    | Search packages with query           |
+| `/nuget/query`                           | GET    | Query packages (required by VS)       |
 | `/nuget/list`                            | GET    | List all packages                    |
 | `/nuget/autocomplete`                    | GET    | Package name autocomplete            |
-| `/nuget/metadata/{id}/index.json`        | GET    | Get all versions of a package        |
-| `/nuget/metadata/{id}/{version}.json`    | GET    | Get specific package metadata        |
+| `/nuget/v3/registrations/{id}/index.json` | GET    | Get all versions of a package        |
+| `/nuget/v3/registrations/{id}/{version}.json` | GET | Get specific package metadata        |
 | `/nuget/v3-flatcontainer/{id}/index.json` | GET  | Package versions (flat container)     |
 | `/nuget/v3-flatcontainer/{id}/{version}/{fileName}` | GET | Download package file    |
 | `/nuget/{id}/{version}`                  | DELETE | Delete a specific package version    |
@@ -272,6 +273,93 @@ docker cp dragonfly-nugetserver:/app/nuget-packages ./backup/
 
 # Access container shell
 docker exec -it dragonfly-nugetserver /bin/bash
+```
+
+### Raspberry Pi Deployment with SSL
+
+This section covers deploying the NuGet server on a Raspberry Pi with proper SSL certificate configuration for secure access.
+
+#### 1. Create SSL Certificates
+
+First, create a directory for your certificates and generate self-signed certificates:
+
+```bash
+# Create certificates directory
+mkdir -p /home/username/certs && cd /home/username/certs 
+
+# Generate self-signed certificate
+openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
+  -keyout key.pem -out cert.pem -subj "/CN=servername"
+
+# Create PFX file for ASP.NET Core
+openssl pkcs12 -export -out nuget.pfx -inkey key.pem -in cert.pem \
+  -passout pass:yourpassword
+
+# Export certificate for client import (optional)
+openssl x509 -in cert.pem -outform der -out nuget.cer
+```
+
+Replace `servername` with your Raspberry Pi hostname or IP address, and `yourpassword` with a secure password.
+
+#### 2. Build the Docker Image
+
+Build the Docker image on your Raspberry Pi:
+
+```bash
+# Navigate to project directory
+cd /path/to/NuGetServer
+
+# Build the image
+docker build -t dragonfly-nugetserver:latest -f NuGetServer/Dockerfile .
+```
+
+#### 3. Run the Container with SSL
+
+Run the container with the SSL certificate mounted:
+
+```bash
+docker run -d \
+  --name dragonfly-nugetserver \
+  --restart=always \
+  -p 5000:8080 \
+  -p 5001:8081 \
+  -v /home/username/nuget-server-data:/app/nuget-packages \
+  -v /home/username/certs/nuget.pfx:/https/nuget.pfx:ro \
+  -e ASPNETCORE_ENVIRONMENT=Production \
+  -e ASPNETCORE_URLS="http://+:8080;https://+:8081" \
+  -e Kestrel__Certificates__Default__Path=/https/nuget.pfx \
+  -e Kestrel__Certificates__Default__Password='yourpassword' \
+  -e NuGetIndex__ServiceUrl="https://servername:5001" \
+  dragonfly-nugetserver:latest
+```
+
+Replace:
+- `/home/username/nuget-server-data` with your desired storage path
+- `/home/username/certs/nuget.pfx` with the path to your certificate
+- `yourpassword` with the certificate password you set earlier
+- `servername` with your actual server name or IP address
+
+#### 4. Import the Certificate on Client Machines (Windows)
+
+To trust the self-signed certificate on Windows clients:
+
+1. Copy the `nuget.cer` file to your Windows machine
+2. Double-click the file and select "Install Certificate"
+3. Choose "Local Machine" and click "Next"
+4. Select "Place all certificates in the following store"
+5. Click "Browse" and select "Trusted Root Certification Authorities"
+6. Click "Next" and then "Finish"
+
+#### 5. Configure NuGet Client
+
+On your development machine:
+
+```bash
+# Add the NuGet source
+nuget sources add -Name "Raspberry NuGet" -Source "https://servername:5001/nuget" -NonInteractive
+
+# Test the connection
+nuget list -Source "Raspberry NuGet"
 ```
 
 ## 🧪 Testing & Development
