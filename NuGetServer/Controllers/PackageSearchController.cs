@@ -67,6 +67,8 @@ public class PackageSearchController : ControllerBase
                 new() { Id = $"{baseUrl}/v3/registrations/",    Type = "RegistrationsBaseUrl/3.6.0" },
                 new() { Id = $"{baseUrl}/v3/query",             Type = "SearchQueryService/3.0.0-beta" },
                 new() { Id = $"{baseUrl}/v3/query",             Type = "SearchQueryService" },
+                new() { Id = $"{baseUrl}/v3/search",            Type = "SearchQueryService/3.0.0-beta" },
+                new() { Id = $"{baseUrl}/v3/search",            Type = "SearchQueryService" },
                 new() { Id = $"{baseUrl}/v3/autocomplete",      Type = "SearchAutocompleteService/3.0.0-beta" },
                 new() { Id = $"{baseUrl}/v3/autocomplete",      Type = "SearchAutocompleteService" },
                 new() { Id = $"{baseUrl}/v3/upload",            Type = "PackagePublish/2.0.0" }
@@ -90,6 +92,18 @@ public class PackageSearchController : ControllerBase
             _logger.LogError(ex, "Error listing packages");
             return Problem(detail: ex.Message, statusCode: 500, title: "Internal Server Error");
         }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("search")]
+    public async Task<IActionResult> SearchPackagesV3(
+        [FromQuery(Name = "q")] string? q = null,
+        [FromQuery(Name = "skip")] int skip = 0,
+        [FromQuery(Name = "take")] int take = 20,
+        [FromQuery(Name = "prerelease")] bool prerelease = false)
+    {
+        // Reuse the query endpoint implementation for search endpoint
+        return await SearchPackages(q, skip, take, prerelease);
     }
 
     [AllowAnonymous]
@@ -127,6 +141,7 @@ public class PackageSearchController : ControllerBase
                 .Take(take)
                 .ToList();
 
+            // Use format that's compatible with both Visual Studio and nuget.exe
             return Ok(new
             {
                 totalHits = packagesByIdWithVersions.Count,
@@ -135,13 +150,17 @@ public class PackageSearchController : ControllerBase
                     var packageVersions = packagesByIdWithVersions[id];
                     var latestPackage = packageVersions.First(); // Already sorted by version desc
                     
+                    // Use the specific format needed for NuGet client tools
                     return new
                     {
                         id = latestPackage.Id,
                         version = latestPackage.Version,
-                        versions = packageVersions.Select(p => new { version = p.Version }).ToArray(),
                         description = latestPackage.Description ?? "",
-                        authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(',')
+                        authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(','),
+                        versions = packageVersions.Select(p => new { 
+                            version = p.Version,
+                            downloads = 0
+                        }).ToArray()
                     };
                 })
             });
