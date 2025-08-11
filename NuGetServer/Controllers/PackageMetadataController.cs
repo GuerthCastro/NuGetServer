@@ -29,25 +29,46 @@ public class PackageMetadataController : ControllerBase
             if (versions == null || !versions.Any())
                 return NotFound(new { message = $"Package '{id}' not found" });
 
-            // Format response according to NuGet v3 protocol
+            // Format response according to NuGet v3 protocol with enhanced format for Visual Studio 2022
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
             var packageBaseUrl = $"{baseUrl}/v3/registrations/{id}";
+            var lowerId = id.ToLowerInvariant();
             
             var response = new
             {
+                @context = new
+                {
+                    vocab = "http://schema.nuget.org/schema#",
+                    @base = baseUrl
+                },
+                @id = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+                @type = "catalog:CatalogRoot",
                 count = versions.Count,
                 items = new[]
                 {
                     new
                     {
+                        @id = $"{baseUrl}/v3/registrations/{lowerId}/page/0.json",
+                        @type = "catalog:CatalogPage",
+                        count = versions.Count,
+                        lower = versions.OrderBy(v => v).FirstOrDefault(),
+                        upper = versions.OrderByDescending(v => v).FirstOrDefault(),
                         items = versions.Select(v => new
                         {
+                            @id = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json",
+                            @type = "Package",
                             catalogEntry = new
                             {
+                                @id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
+                                @type = "PackageDetails",
+                                authors = "",
                                 id = id,
-                                version = v
+                                version = v,
+                                description = "",
+                                title = id
                             },
-                            packageContent = $"{baseUrl}/v3/v3-flatcontainer/{id.ToLowerInvariant()}/{v}/{id.ToLowerInvariant()}.{v}.nupkg"
+                            packageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
+                            registration = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json"
                         }).ToArray()
                     }
                 }
@@ -72,14 +93,37 @@ public class PackageMetadataController : ControllerBase
             if (metadata == null)
                 return NotFound(new { message = $"Package '{id}' version '{version}' not found" });
 
-            // Format response according to NuGet v3 protocol
+            // Format response according to NuGet v3 protocol with enhanced format for VS2022
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            var lowerId = id.ToLowerInvariant();
             
             var response = new
             {
-                catalogEntry = metadata,
-                packageContent = $"{baseUrl}/v3/v3-flatcontainer/{id.ToLowerInvariant()}/{version}/{id.ToLowerInvariant()}.{version}.nupkg",
-                registration = $"{baseUrl}/v3/registrations/{id}/{version}.json"
+                @context = new
+                {
+                    vocab = "http://schema.nuget.org/schema#",
+                    base = baseUrl
+                },
+                @id = $"{baseUrl}/v3/registrations/{lowerId}/{version}.json",
+                @type = "Package",
+                catalogEntry = new
+                {
+                    @id = $"{baseUrl}/v3/catalog/{lowerId}/{version}.json",
+                    @type = "PackageDetails",
+                    authors = metadata.Authors ?? "",
+                    description = metadata.Description ?? "",
+                    id = metadata.Id,
+                    title = metadata.Id,
+                    version = metadata.Version,
+                    summary = metadata.Description ?? "",
+                    tags = new string[] { },
+                    packageTypes = new[] { new { name = "Dependency", version = "" } },
+                    licenseUrl = "",
+                    projectUrl = "",
+                    iconUrl = ""
+                },
+                packageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{version}/{lowerId}.{version}.nupkg",
+                registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json"
             };
 
             return Ok(response);

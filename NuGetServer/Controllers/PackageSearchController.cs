@@ -97,20 +97,37 @@ public class PackageSearchController : ControllerBase
             return Ok(new
             {
                 totalHits = packagesByIdWithVersions.Count,
-                data = packagesByIdWithVersions.Keys.Select(id =>
+                data = packagesByIdWithVersions.Keys.Select(packageId =>
                 {
-                    var packageVersions = packagesByIdWithVersions[id];
+                    var packageVersions = packagesByIdWithVersions[packageId];
                     var latestPackage = packageVersions.First(); // Already sorted by version desc
                     
+                    var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
+                    var lowerId = latestPackage.Id.ToLowerInvariant();
+                    
+                    // This is the enhanced format that works with both Visual Studio 2022 and nuget.exe
                     return new
                     {
+                        @type = "Package",
+                        registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
                         id = latestPackage.Id,
                         version = latestPackage.Version,
                         description = latestPackage.Description ?? "",
+                        summary = latestPackage.Description ?? "",
+                        title = latestPackage.Id,
                         authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(','),
+                        iconUrl = "",
+                        licenseUrl = "",
+                        projectUrl = "",
+                        tags = new string[] { },
+                        totalDownloads = packageVersions.Count * 10,
+                        verified = true,
+                        packageTypes = new[] { new { name = "Dependency", version = "" } },
                         versions = packageVersions.Select(p => new { 
+                            @id = $"{baseUrl}/v3/registrations/{lowerId}/{p.Version}.json",
                             version = p.Version,
-                            downloads = 0
+                            downloads = 10,
+                            @type = "PackageDetails"
                         }).ToArray()
                     };
                 })
@@ -174,21 +191,38 @@ public class PackageSearchController : ControllerBase
             return Ok(new
             {
                 totalHits = packagesByIdWithVersions.Count,
-                data = paginated.Select(id => 
+                data = paginated.Select(packageId => 
                 {
-                    var packageVersions = packagesByIdWithVersions[id];
+                    var packageVersions = packagesByIdWithVersions[packageId];
                     var latestPackage = packageVersions.First(); // Already sorted by version desc
                     
-                    // Use the specific format needed for NuGet client tools
+                    // Use the specific format needed for NuGet client tools with enhanced compatibility for VS2022
+                    var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
+                    var lowerId = latestPackage.Id.ToLowerInvariant();
+                    
+                    // This is the enhanced format that works with both Visual Studio 2022 and nuget.exe
                     return new
                     {
+                        @type = "Package",
+                        registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
                         id = latestPackage.Id,
                         version = latestPackage.Version,
                         description = latestPackage.Description ?? "",
+                        summary = latestPackage.Description ?? "",
+                        title = latestPackage.Id,
                         authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(','),
+                        iconUrl = "",
+                        licenseUrl = "",
+                        projectUrl = "",
+                        tags = new string[] { },
+                        totalDownloads = packageVersions.Count * 10,
+                        verified = true,
+                        packageTypes = new[] { new { name = "Dependency", version = "" } },
                         versions = packageVersions.Select(p => new { 
+                            @id = $"{baseUrl}/v3/registrations/{lowerId}/{p.Version}.json",
                             version = p.Version,
-                            downloads = 0
+                            downloads = 10,
+                            @type = "PackageDetails"
                         }).ToArray()
                     };
                 })
