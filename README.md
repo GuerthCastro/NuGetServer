@@ -10,17 +10,30 @@ A lightweight, self-hosted NuGet server built with ASP.NET Core (.NET 9). This s
 - All example API keys in this documentation use `<YOUR_API_KEY>` as a placeholder. Replace with your own value at runtime.
 - This repository intentionally has **no CI/CD, build, or deployment automation**. All builds and deployments are managed by users locally (e.g., via Docker or `dotnet` CLI). See [docs/SECURITY_SETUP.md](docs/SECURITY_SETUP.md) for required manual GitHub security settings.
 
+
 ## ✨ Features
 
 - 📦 **Push (publish) NuGet packages** via standard NuGet client
-- 🔍 **Search and retrieve package metadata** with full text search
+- 🔍 **Search and retrieve package metadata** (now always included, namespace-aware)
 - 🌐 **Compatible with NuGet v3 API** protocol (Visual Studio and nuget.exe supported)
-- � **Download tracking** with per-package version statistics
-- �📖 **OpenAPI/Swagger documentation** for easy API exploration
+- 📊 **Download tracking** with per-package version statistics
+- 📖 **OpenAPI/Swagger documentation** for easy API exploration
 - 🐳 **Docker support** with multi-stage builds
 - 🔧 **Configurable storage paths** and API keys
 - 🛡️ **Health check endpoints** for monitoring
 - 🧪 **Comprehensive unit tests** with high coverage
+
+## ℹ️ Important Configuration Note
+
+**The `NuGetIndex:ServiceUrl` setting in `appsettings.json` must match your public server root URL (e.g., `http://myserver:8080`), NOT including `/nuget`.**
+
+If this is set incorrectly, Visual Studio and NuGet clients may show errors like `[Appserver003] The source does not have a Search service!`.
+
+## 🛠️ Metadata Extraction Improvements
+
+- Package metadata (description, authors) is now always included in all listings and search results.
+- Metadata extraction is namespace-aware and compatible with all valid NuGet `.nuspec` files.
+- Improved error handling and logging for missing or malformed metadata.
 
 ## 🛠️ Technologies Used
 

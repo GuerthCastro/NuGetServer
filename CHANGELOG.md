@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 ## [Unreleased]
+
+### Added
+- Unified and improved package metadata extraction (namespace-aware, always included in listings)
+- Improved error handling and logging for package metadata extraction
+
+### Changed
+- Service index URL (`NuGetIndex:ServiceUrl`) must now match the public server root (not `/nuget`) for Visual Studio/NuGet client compatibility
+
+### Fixed
+- Fixed `[Appserver003] The source does not have a Search service!` error by correcting service index resource URLs
 
 ## [1.0.1] - 2025-08-15
 
