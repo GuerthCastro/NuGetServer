@@ -1,3 +1,4 @@
+using NuGet.Versioning;
 using NuGetServer.Entities.Config;
 using NuGetServer.Entities.DTO;
 using System.IO.Compression;
@@ -37,13 +38,40 @@ public class PackageStorageService : IPackageStorageService
 
         var packageFolder = Path.Combine(_nuGetServer.PackagesPath, packageId, version);
         Directory.CreateDirectory(packageFolder);
-
         var savePath = Path.Combine(packageFolder, fileName);
         await using (var fileStream = new FileStream(savePath, FileMode.Create))
         {
             await packageStream.CopyToAsync(fileStream);
         }
-
+        var flatContainerRoot = Path.Combine(_nuGetServer.PackagesPath, "v3-flatcontainer");
+        Directory.CreateDirectory(flatContainerRoot);
+        var idLower = packageId.ToLowerInvariant();
+        var flatIdDir = Path.Combine(flatContainerRoot, idLower);
+        Directory.CreateDirectory(flatIdDir);
+        var indexPath = Path.Combine(flatIdDir, "index.json");
+        List<string> allVersions = new();
+        if (File.Exists(indexPath))
+        {
+            try
+            {
+                var json = await File.ReadAllTextAsync(indexPath);
+                var dto = System.Text.Json.JsonSerializer.Deserialize<NuGetServer.Entities.DTO.VersionsIndexDto>(json);
+                if (dto?.Versions != null)
+                    allVersions.AddRange(dto.Versions);
+            }
+            catch { }
+        }
+        if (!allVersions.Contains(version, StringComparer.OrdinalIgnoreCase))
+            allVersions.Add(version);
+        var normalized = allVersions
+            .Select(v => v.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(v => NuGet.Versioning.NuGetVersion.Parse(v).ToNormalizedString())
+            .OrderBy(v => NuGet.Versioning.NuGetVersion.Parse(v))
+            .ToArray();
+        var indexDto = new NuGetServer.Entities.DTO.VersionsIndexDto { Versions = normalized };
+        var outJson = System.Text.Json.JsonSerializer.Serialize(indexDto);
+        await File.WriteAllTextAsync(indexPath, outJson);
         _logger.LogInformation("Package {PackageId} {Version} saved at {Path}", packageId, version, savePath);
         return (true, $"Package {fileName} uploaded successfully");
     }

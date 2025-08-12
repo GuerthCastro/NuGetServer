@@ -1,3 +1,5 @@
+using NuGet.Versioning;
+using NuGetServer.Entities.DTO;
 using NuGetServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -25,99 +27,45 @@ public class PackageMetadataController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet("{id}/index.json")]
-    public async Task<IActionResult> GetPackageVersions(string id)
+    public async Task<IActionResult> GetPackageVersions(string id, [FromQuery(Name = "semVerLevel")] string semVerLevel = null)
     {
-        try
-        {
-            var versions = await _packageStorageService.GetPackageVersions(id);
-            if (versions == null || !versions.Any())
-                return NotFound(new { message = $"Package '{id}' not found" });
-
-            // Format response according to NuGet v3 protocol with enhanced format for Visual Studio 2022
-            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
-            var packageBaseUrl = $"{baseUrl}/v3/registrations/{id}";
-            var lowerId = id.ToLowerInvariant();
-            
-            // Fetch actual package info with metadata and download counts
-            var latestVersion = versions.OrderByDescending(v => v).FirstOrDefault() ?? "";
-            var registrationItemTasks = versions.Select(async v => 
+        var versions = await _packageStorageService.GetPackageVersions(id);
+        if (versions == null || !versions.Any())
+            return NotFound();
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        var lowerId = id.ToLowerInvariant();
+        var normalizedVersions = versions.Select(v => NuGet.Versioning.NuGetVersion.Parse(v).ToNormalizedString()).ToList();
+        var leafTasks = normalizedVersions.Select(async v => {
+            var metadata = await _packageStorageService.GetPackageMetadata(id, v);
+            return new RegistrationLeafDto
             {
-                var metadata = await _packageStorageService.GetPackageMetadata(id, v);
-                return new PackageItem
+                PackageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
+                Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+                CatalogEntry = new CatalogEntryDto
                 {
-                    Id = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json",
-                    Type = "Package",
-                    Listed = true,  // Ensure all versions are listed as available
-                    CatalogEntry = new PackageCatalogEntry
-                    {
-                        Id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
-                        Type = "PackageDetails",
-                        Authors = metadata?.Authors ?? "",
-                        PackageId = id,
-                        Version = v,
-                        Description = metadata?.Description ?? "",
-                        Title = id,
-                        Summary = metadata?.Description ?? "",
-                        IsLatestVersion = (v == latestVersion), // Only the latest version is marked as latest
-                        Listed = true, // All versions are listed
-                        Downloads = metadata?.DownloadCount ?? 0, // Use actual download count
-                        // Add more required fields for NuGet client
-                        IconUrl = "",
-                        LicenseUrl = "",
-                        ProjectUrl = "",
-                        Tags = new string[] { },
-                        Verified = true,
-                        // Add more VS-required fields
-                        DependencyGroups = new object[] { },
-                        PackageTypes = new[] { new { name = "Package", version = "" } }
-                    },
-                    PackageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
-                };
-            }).ToList();
-            
-            // Wait for all metadata to be fetched
-            var registrationItems = new List<PackageItem>();
-            foreach (var task in registrationItemTasks)
-            {
-                var item = await task;
-                registrationItems.Add(item);
-            }            // Create the fully compatible response for Visual Studio 2022
-            var response = new PackageRegistration
-            {
-                Id = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
-                Type = "catalog:CatalogRoot",
-                Context = new RegistrationContext
-                {
-                    Vocab = "http://schema.nuget.org/schema#",
-                    Base = baseUrl
-                },
-                Count = versions.Count,
-                Items = new List<RegistrationPage>
-                {
-                    new RegistrationPage
-                    {
-                        Id = $"{baseUrl}/v3/registrations/{lowerId}/page/0.json",
-                        Type = "catalog:CatalogPage",
-                        Count = versions.Count,
-                        Lower = versions.OrderBy(v => v).FirstOrDefault() ?? "",
-                        Upper = versions.OrderByDescending(v => v).FirstOrDefault() ?? "",
-                        Items = registrationItems,
-                        Parent = $"{baseUrl}/v3/registrations/{lowerId}/index.json"
-                    }
+                    Id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
+                    Version = v,
+                    Listed = true
                 }
             };
-            
-            // Log the JSON response for debugging
-            var responseJson = JsonConvert.SerializeObject(response, Formatting.Indented);
-            _logger.LogInformation("Registration response for {Id}: {Response}", id, responseJson);
-
-            return Ok(response);
-        }
-        catch (Exception ex)
+        }).ToList();
+        var leaves = new List<RegistrationLeafDto>();
+        foreach (var t in leafTasks)
+            leaves.Add(await t);
+        var page = new RegistrationPageDto
         {
-            _logger.LogError(ex, "Error getting package versions for {Id}", id);
-            return StatusCode(500, new { message = "Internal server error" });
-        }
+            Lower = normalizedVersions.OrderBy(x => NuGet.Versioning.NuGetVersion.Parse(x)).FirstOrDefault() ?? "",
+            Upper = normalizedVersions.OrderByDescending(x => NuGet.Versioning.NuGetVersion.Parse(x)).FirstOrDefault() ?? "",
+            Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+            Items = leaves
+        };
+        var dto = new RegistrationIndexDto
+        {
+            Count = normalizedVersions.Count,
+            Items = new[] { page },
+            Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json"
+        };
+        return Ok(dto);
     }
 
     [AllowAnonymous]
@@ -128,9 +76,8 @@ public class PackageMetadataController : ControllerBase
         {
             var metadata = await _packageStorageService.GetPackageMetadata(id, version);
             if (metadata == null)
-                return NotFound(new { message = $"Package '{id}' version '{version}' not found" });
+                return NotFound(new ErrorResponse { Message = $"Package '{id}' version '{version}' not found" });
 
-            // Format response according to NuGet v3 protocol with enhanced format for VS2022
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
             var lowerId = id.ToLowerInvariant();
             
@@ -144,7 +91,7 @@ public class PackageMetadataController : ControllerBase
                 Title = metadata.Id,
                 Version = metadata.Version,
                 Summary = metadata.Description ?? "",
-                IsLatestVersion = false, // Default to false, we'll set it correctly below
+                IsLatestVersion = false, 
                 Listed = true,
                 Downloads = metadata.DownloadCount,
                 IconUrl = "",
@@ -154,7 +101,6 @@ public class PackageMetadataController : ControllerBase
                 Verified = true
             };
             
-            // Determine if this is the latest version
             var allVersions = await _packageStorageService.GetPackageVersions(id);
             if (allVersions.Any() && version.Equals(allVersions.OrderByDescending(v => v).FirstOrDefault(), StringComparison.OrdinalIgnoreCase))
             {
@@ -180,7 +126,7 @@ public class PackageMetadataController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting package metadata for {Id} {Version}", id, version);
-            return StatusCode(500, new { message = "Internal server error" });
+            return StatusCode(500, new ErrorResponse { Message = "Internal server error" });
         }
     }
 }

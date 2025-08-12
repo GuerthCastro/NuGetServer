@@ -23,15 +23,6 @@ namespace NuGetServer.Entities.DTO
         public List<RegistrationPage> Items { get; set; } = new List<RegistrationPage>();
     }
 
-    [ExcludeFromCodeCoverage]
-    public class RegistrationContext
-    {
-        [JsonProperty("@vocab")]
-        public string Vocab { get; set; } = "http://schema.nuget.org/schema#";
-
-        [JsonProperty("@base")]
-        public string Base { get; set; } = string.Empty;
-    }
 
     [ExcludeFromCodeCoverage]
     public class RegistrationPage

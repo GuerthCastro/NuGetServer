@@ -1,3 +1,4 @@
+using NuGetServer.Entities.DTO;
 using NuGetServer.Extensions;
 using NuGetServer.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -41,7 +42,7 @@ public class PackagePublishController : ControllerBase
                 return BadRequest(result.Message.ToProblem(400));
 
             _logger.LogInformation("NuGet package {File} published successfully.", file.FileName);
-            return Ok(new { message = result.Message });
+            return Ok(new MessageResponse { Message = result.Message });
         }
         catch (Exception ex)
         {
@@ -66,7 +67,7 @@ public class PackagePublishController : ControllerBase
                 return NotFound("Package not found".ToProblem(404));
 
             _logger.LogInformation("NuGet package {Id} {Version} deleted successfully.", id, version);
-            return Ok(new { message = $"Package {id} {version} deleted successfully" });
+            return Ok(new MessageResponse { Message = $"Package {id} {version} deleted successfully" });
         }
         catch (Exception ex)
         {

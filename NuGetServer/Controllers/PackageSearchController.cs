@@ -63,8 +63,6 @@ public class PackageSearchController : ControllerBase
             Resources = new()
             {
                 new() { Id = $"{baseUrl}/v3/v3-flatcontainer/", Type = "PackageBaseAddress/3.0.0" },
-                new() { Id = $"{baseUrl}/v3/registrations/",    Type = "RegistrationsBaseUrl" },
-                new() { Id = $"{baseUrl}/v3/registrations/",    Type = "RegistrationsBaseUrl/3.0.0-rc" },
                 new() { Id = $"{baseUrl}/v3/registrations/",    Type = "RegistrationsBaseUrl/3.6.0" },
                 new() { Id = $"{baseUrl}/v3/query",             Type = "SearchQueryService/3.0.0-beta" },
                 new() { Id = $"{baseUrl}/v3/query",             Type = "SearchQueryService" },
@@ -75,7 +73,6 @@ public class PackageSearchController : ControllerBase
                 new() { Id = $"{baseUrl}/v3/upload",            Type = "PackagePublish/2.0.0" }
             }
         };
-
         return Ok(index);
     }
 
@@ -325,7 +322,7 @@ public class PackageSearchController : ControllerBase
         if (await _packageStorageService.PackageExists(id, version))
         {
             _logger.LogInformation("Package {Id} {Version} exists", id, version);
-            return Ok(new { });  // Empty JSON object is fine here
+            return Ok(new EmptyResponse());
         }
         return NotFound();
     }
