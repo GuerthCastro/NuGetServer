@@ -15,7 +15,8 @@ A lightweight, self-hosted NuGet server built with ASP.NET Core (.NET 9). This s
 - 📦 **Push (publish) NuGet packages** via standard NuGet client
 - 🔍 **Search and retrieve package metadata** with full text search
 - 🌐 **Compatible with NuGet v3 API** protocol (Visual Studio and nuget.exe supported)
-- 📖 **OpenAPI/Swagger documentation** for easy API exploration
+- � **Download tracking** with per-package version statistics
+- �📖 **OpenAPI/Swagger documentation** for easy API exploration
 - 🐳 **Docker support** with multi-stage builds
 - 🔧 **Configurable storage paths** and API keys
 - 🛡️ **Health check endpoints** for monitoring
@@ -26,10 +27,20 @@ A lightweight, self-hosted NuGet server built with ASP.NET Core (.NET 9). This s
 - **.NET 9** (ASP.NET Core)
 - **Swashbuckle.AspNetCore** (Swagger/OpenAPI docs)
 - **Microsoft.AspNetCore.OpenApi**
+- **System.Text.Json** (JSON serialization for download tracking)
 - **xUnit**, **Moq**, **FluentAssertions**, **Bogus** (Testing)
 - **coverlet.collector** (Code coverage)
 
-## 📁 Project Structure
+## � Download Tracking
+
+The server tracks download counts for each package version. When a package is downloaded:
+
+1. The server creates or updates a `download_count.json` file in the package version folder
+2. Download counts are displayed in search results and package metadata
+3. The tracking is case-insensitive, so package IDs are matched regardless of casing
+4. Each version's download count is tracked separately
+
+## �📁 Project Structure
 
 ```
 NuGetServer/

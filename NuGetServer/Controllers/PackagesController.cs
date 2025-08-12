@@ -19,7 +19,10 @@ public class PackagesController : ControllerBase
     {
         _logger = logger;
         _serviceConfig = serviceConfig;
-        _serviceConfig.ServiceName = _serviceConfig.ServiceName.Replace("{controllerName}", GetType().Name);
+        if (_serviceConfig.ServiceName != null)
+        {
+            _serviceConfig.ServiceName = _serviceConfig.ServiceName.Replace("{controllerName}", GetType().Name);
+        }
         _nuGetServer = settings;
         _packageStorageService = packageStorageService;
     }

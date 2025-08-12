@@ -64,6 +64,8 @@ public class PackageSearchController : ControllerBase
             Resources = new()
             {
                 new() { Id = $"{baseUrl}/v3/v3-flatcontainer/", Type = "PackageBaseAddress/3.0.0" },
+                new() { Id = $"{baseUrl}/v3/registrations/",    Type = "RegistrationsBaseUrl" },
+                new() { Id = $"{baseUrl}/v3/registrations/",    Type = "RegistrationsBaseUrl/3.0.0-rc" },
                 new() { Id = $"{baseUrl}/v3/registrations/",    Type = "RegistrationsBaseUrl/3.6.0" },
                 new() { Id = $"{baseUrl}/v3/query",             Type = "SearchQueryService/3.0.0-beta" },
                 new() { Id = $"{baseUrl}/v3/query",             Type = "SearchQueryService" },
@@ -252,8 +254,29 @@ public class PackageSearchController : ControllerBase
     [HttpGet("v3-flatcontainer/{id}/index.json")]
     public async Task<IActionResult> GetPackageVersions(string id)
     {
+        _logger.LogInformation("Received request for package versions: {Id}", id);
         var versions = await _packageStorageService.GetPackageVersions(id);
-        return Ok(new { versions });
+        _logger.LogInformation("Returning versions for package {Id}: {@Versions}", id, versions);
+        Response.Headers.Append("Content-Type", "application/json");
+        
+        // Debug response
+        var result = new { versions };
+        var json = JsonConvert.SerializeObject(result);
+        _logger.LogInformation("Response JSON: {Json}", json);
+        
+        return Ok(result);
+    }
+    
+    [AllowAnonymous]
+    [HttpGet("v3-flatcontainer/{id}/{version}/index.json")]
+    public async Task<IActionResult> GetPackageVersionInfo(string id, string version)
+    {
+        if (await _packageStorageService.PackageExists(id, version))
+        {
+            _logger.LogInformation("Package {Id} {Version} exists", id, version);
+            return Ok(new { });  // Empty JSON object is fine here
+        }
+        return NotFound();
     }
 
     [AllowAnonymous]
@@ -262,9 +285,15 @@ public class PackageSearchController : ControllerBase
     {
         try
         {
+            _logger.LogInformation("Downloading package {Id} {Version} file: {FileName}", id, version, fileName);
             var (stream, contentType) = await _packageStorageService.GetPackageStream(id, version);
             if (stream == null)
+            {
+                _logger.LogWarning("Package {Id} {Version} not found for download", id, version);
                 return NotFound("Package not found".ToProblem(404));
+            }
+            
+            _logger.LogInformation("Serving package file with content type: {ContentType}", contentType);
             return File(stream, contentType ?? "application/octet-stream", fileName);
         }
         catch (Exception ex)

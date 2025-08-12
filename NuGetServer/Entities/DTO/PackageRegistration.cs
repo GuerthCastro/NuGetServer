@@ -53,6 +53,9 @@ namespace NuGetServer.Entities.DTO
 
         [JsonProperty("items")]
         public List<PackageItem> Items { get; set; } = new List<PackageItem>();
+        
+        [JsonProperty("parent")]
+        public string? Parent { get; set; }
     }
 
     [ExcludeFromCodeCoverage]
@@ -109,6 +112,27 @@ namespace NuGetServer.Entities.DTO
         
         [JsonProperty("downloads")]
         public int Downloads { get; set; }
+        
+        [JsonProperty("iconUrl")]
+        public string IconUrl { get; set; } = string.Empty;
+        
+        [JsonProperty("licenseUrl")]
+        public string LicenseUrl { get; set; } = string.Empty;
+        
+        [JsonProperty("projectUrl")]
+        public string ProjectUrl { get; set; } = string.Empty;
+        
+        [JsonProperty("tags")]
+        public string[] Tags { get; set; } = Array.Empty<string>();
+        
+        [JsonProperty("verified")]
+        public bool Verified { get; set; } = true;
+        
+        [JsonProperty("dependencyGroups")]
+        public object[]? DependencyGroups { get; set; }
+        
+        [JsonProperty("packageTypes")]
+        public object[]? PackageTypes { get; set; }
     }
 
     [ExcludeFromCodeCoverage]

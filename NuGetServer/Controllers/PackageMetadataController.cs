@@ -47,6 +47,7 @@ public class PackageMetadataController : ControllerBase
                 {
                     Id = $"{baseUrl}/v3/registrations/{lowerId}/{v}.json",
                     Type = "Package",
+                    Listed = true,  // Ensure all versions are listed as available
                     CatalogEntry = new PackageCatalogEntry
                     {
                         Id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
@@ -59,20 +60,29 @@ public class PackageMetadataController : ControllerBase
                         Summary = metadata?.Description ?? "",
                         IsLatestVersion = (v == latestVersion), // Only the latest version is marked as latest
                         Listed = true, // All versions are listed
-                        Downloads = metadata?.DownloadCount ?? 0 // Use actual download count
+                        Downloads = metadata?.DownloadCount ?? 0, // Use actual download count
+                        // Add more required fields for NuGet client
+                        IconUrl = "",
+                        LicenseUrl = "",
+                        ProjectUrl = "",
+                        Tags = new string[] { },
+                        Verified = true,
+                        // Add more VS-required fields
+                        DependencyGroups = new object[] { },
+                        PackageTypes = new[] { new { name = "Package", version = "" } }
                     },
                     PackageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
                 };
             }).ToList();
             
             // Wait for all metadata to be fetched
-                var registrationItems = new List<PackageItem>();
+            var registrationItems = new List<PackageItem>();
             foreach (var task in registrationItemTasks)
             {
                 var item = await task;
-                item.Listed = true; // Make sure all versions are listed
                 registrationItems.Add(item);
-            }            var response = new PackageRegistration
+            }            // Create the fully compatible response for Visual Studio 2022
+            var response = new PackageRegistration
             {
                 Id = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
                 Type = "catalog:CatalogRoot",
@@ -91,9 +101,15 @@ public class PackageMetadataController : ControllerBase
                         Count = versions.Count,
                         Lower = versions.OrderBy(v => v).FirstOrDefault() ?? "",
                         Upper = versions.OrderByDescending(v => v).FirstOrDefault() ?? "",
-                        Items = registrationItems
+                        Items = registrationItems,
+                        Parent = $"{baseUrl}/v3/registrations/{lowerId}/index.json"
                     }
                 }
+            };
+            
+            // Log the JSON response for debugging
+            var responseJson = JsonConvert.SerializeObject(response, Formatting.Indented);
+            _logger.LogInformation("Registration response for {Id}: {Response}", id, responseJson);
             };
 
             return Ok(response);
@@ -127,8 +143,24 @@ public class PackageMetadataController : ControllerBase
                 Description = metadata.Description ?? "",
                 PackageId = metadata.Id,
                 Title = metadata.Id,
-                Version = metadata.Version
+                Version = metadata.Version,
+                Summary = metadata.Description ?? "",
+                IsLatestVersion = false, // Default to false, we'll set it correctly below
+                Listed = true,
+                Downloads = metadata.DownloadCount,
+                IconUrl = "",
+                LicenseUrl = "",
+                ProjectUrl = "",
+                Tags = Array.Empty<string>(),
+                Verified = true
             };
+            
+            // Determine if this is the latest version
+            var allVersions = await _packageStorageService.GetPackageVersions(id);
+            if (allVersions.Any() && version.Equals(allVersions.OrderByDescending(v => v).FirstOrDefault(), StringComparison.OrdinalIgnoreCase))
+            {
+                catalogEntry.IsLatestVersion = true;
+            }
 
             var response = new PackageMetadata
             {

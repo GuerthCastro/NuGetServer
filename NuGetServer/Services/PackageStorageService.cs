@@ -12,7 +12,7 @@ public class PackageStorageService : IPackageStorageService
     private readonly Entities.Config.NuGetServer _nuGetServer;
     private readonly NuGetIndex _nuGetIndex;
     private static readonly Regex versionRegex = new(@"(?<version>\d+\.\d+\.\d+(-[0-9A-Za-z\-.]+)?)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly string DOWNLOAD_STATS_FILE = "download_stats.json";
+    private static readonly string DOWNLOAD_COUNT_FILE = "download_count.json";
 
     public PackageStorageService(ILogger<PackageStorageService> logger, Entities.Config.NuGetServer nuGetServer, NuGetIndex nuGetIndex)
     {
@@ -50,11 +50,50 @@ public class PackageStorageService : IPackageStorageService
 
     public async Task<(Stream? Stream, string? ContentType)> GetPackageStream(string packageId, string version)
     {
+        // First try exact case
         var packageFolder = Path.Combine(_nuGetServer.PackagesPath, packageId, version);
-        if (!Directory.Exists(packageFolder)) return (null, null);
-
+        
+        // If not found, try case insensitive search for package ID
+        if (!Directory.Exists(packageFolder))
+        {
+            var rootDir = new DirectoryInfo(_nuGetServer.PackagesPath);
+            var matchingDir = rootDir.GetDirectories()
+                .FirstOrDefault(dir => string.Equals(dir.Name, packageId, StringComparison.OrdinalIgnoreCase));
+                
+            if (matchingDir != null)
+            {
+                _logger.LogInformation("Found package directory with case-insensitive match: {ActualName}", matchingDir.Name);
+                
+                // Now look for version folder
+                var versionDir = matchingDir.GetDirectories()
+                    .FirstOrDefault(dir => string.Equals(dir.Name, version, StringComparison.OrdinalIgnoreCase));
+                    
+                if (versionDir != null)
+                {
+                    _logger.LogInformation("Found version directory with case-insensitive match: {ActualVersion}", versionDir.Name);
+                    packageFolder = versionDir.FullName;
+                }
+                else
+                {
+                    _logger.LogWarning("Version directory not found for {PackageId} {Version}", packageId, version);
+                    return (null, null);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("Package directory not found for {PackageId}", packageId);
+                return (null, null);
+            }
+        }
+        
         var packagePath = Directory.GetFiles(packageFolder, "*.nupkg").FirstOrDefault();
-        if (packagePath == null) return (null, null);
+        if (packagePath == null)
+        {
+            _logger.LogWarning("No .nupkg file found in folder: {PackageFolder}", packageFolder);
+            return (null, null);
+        }
+        
+        _logger.LogInformation("Found package file: {PackagePath}", packagePath);
 
         // Increment download count
         await IncrementDownloadCount(packageId, version);
@@ -67,29 +106,70 @@ public class PackageStorageService : IPackageStorageService
     {
         try 
         {
-            var statsFile = Path.Combine(_nuGetServer.PackagesPath, DOWNLOAD_STATS_FILE);
-            var stats = await LoadDownloadStats();
+            // First try exact case
+            var packageFolder = Path.Combine(_nuGetServer.PackagesPath, packageId, version);
             
-            var packageStat = stats.FirstOrDefault(s => 
-                string.Equals(s.Id, packageId, StringComparison.OrdinalIgnoreCase) && 
-                string.Equals(s.Version, version, StringComparison.OrdinalIgnoreCase));
+            // If not found, try case insensitive search for package ID and version
+            if (!Directory.Exists(packageFolder))
+            {
+                var rootDir = new DirectoryInfo(_nuGetServer.PackagesPath);
+                var matchingDir = rootDir.GetDirectories()
+                    .FirstOrDefault(dir => string.Equals(dir.Name, packageId, StringComparison.OrdinalIgnoreCase));
+                    
+                if (matchingDir != null)
+                {
+                    // Now look for version folder
+                    var versionDir = matchingDir.GetDirectories()
+                        .FirstOrDefault(dir => string.Equals(dir.Name, version, StringComparison.OrdinalIgnoreCase));
+                        
+                    if (versionDir != null)
+                    {
+                        _logger.LogInformation("Using case-insensitive match for download count: {ActualId}/{ActualVersion}", 
+                            matchingDir.Name, versionDir.Name);
+                        packageFolder = versionDir.FullName;
+                        packageId = matchingDir.Name; // Use actual casing
+                        version = versionDir.Name; // Use actual casing
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Version directory not found for download count: {PackageId} {Version}", packageId, version);
+                        return;
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Package directory not found for download count: {PackageId}", packageId);
+                    return;
+                }
+            }
+            
+            if (!Directory.Exists(packageFolder))
+            {
+                _logger.LogWarning("Package folder not found for download count: {PackageFolder}", packageFolder);
+                return;
+            }
                 
-            if (packageStat == null)
+            var countFile = Path.Combine(packageFolder, DOWNLOAD_COUNT_FILE);
+            int count = 1;
+            
+            if (File.Exists(countFile))
             {
-                packageStat = new PackageDownloadStats 
-                { 
-                    Id = packageId, 
-                    Version = version, 
-                    DownloadCount = 1 
-                };
-                stats.Add(packageStat);
-            }
-            else
-            {
-                packageStat.DownloadCount++;
+                try
+                {
+                    var json = await File.ReadAllTextAsync(countFile);
+                    count = System.Text.Json.JsonSerializer.Deserialize<int>(json) + 1;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to read download count for {PackageId} {Version}, resetting to 1", packageId, version);
+                    count = 1;
+                }
             }
             
-            await SaveDownloadStats(stats);
+            var newJson = System.Text.Json.JsonSerializer.Serialize(count);
+            await File.WriteAllTextAsync(countFile, newJson);
+            _logger.LogInformation("Updated download count for {PackageId} {Version} to {Count}, saved to {File}", 
+                packageId, version, count, countFile);
         }
         catch (Exception ex)
         {
@@ -97,35 +177,26 @@ public class PackageStorageService : IPackageStorageService
         }
     }
     
-    private async Task<List<PackageDownloadStats>> LoadDownloadStats()
+    private async Task<int> GetDownloadCount(string packageId, string version)
     {
-        var statsFile = Path.Combine(_nuGetServer.PackagesPath, DOWNLOAD_STATS_FILE);
-        if (!File.Exists(statsFile))
-        {
-            return new List<PackageDownloadStats>();
-        }
-        
+        var packageFolder = Path.Combine(_nuGetServer.PackagesPath, packageId, version);
+        if (!Directory.Exists(packageFolder))
+            return 0;
+            
+        var countFile = Path.Combine(packageFolder, DOWNLOAD_COUNT_FILE);
+        if (!File.Exists(countFile))
+            return 0;
+            
         try
         {
-            var json = await File.ReadAllTextAsync(statsFile);
-            return System.Text.Json.JsonSerializer.Deserialize<List<PackageDownloadStats>>(json) 
-                ?? new List<PackageDownloadStats>();
+            var json = await File.ReadAllTextAsync(countFile);
+            return System.Text.Json.JsonSerializer.Deserialize<int>(json);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load download stats");
-            return new List<PackageDownloadStats>();
+            _logger.LogWarning(ex, "Failed to read download count for {PackageId} {Version}", packageId, version);
+            return 0;
         }
-    }
-    
-    private async Task SaveDownloadStats(List<PackageDownloadStats> stats)
-    {
-        var statsFile = Path.Combine(_nuGetServer.PackagesPath, DOWNLOAD_STATS_FILE);
-        var json = System.Text.Json.JsonSerializer.Serialize(stats, new System.Text.Json.JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
-        await File.WriteAllTextAsync(statsFile, json);
     }
 
     public Task<bool> DeletePackage(string packageId, string version)
@@ -160,9 +231,6 @@ public class PackageStorageService : IPackageStorageService
     {
         var result = new List<NuGetPackageInfo>();
         var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
-        
-        // Load download stats
-        var stats = await LoadDownloadStats();
 
         if (!Directory.Exists(_nuGetServer.PackagesPath))
             return result;
@@ -177,11 +245,7 @@ public class PackageStorageService : IPackageStorageService
 
                 if (File.Exists(packageFile))
                 {
-                    var downloadCount = stats
-                        .FirstOrDefault(s => 
-                            string.Equals(s.Id, id, StringComparison.OrdinalIgnoreCase) && 
-                            string.Equals(s.Version, version, StringComparison.OrdinalIgnoreCase))
-                        ?.DownloadCount ?? 0;
+                    var downloadCount = await GetDownloadCount(id, version);
                         
                     var packageInfo = new NuGetPackageInfo
                     {
@@ -230,19 +294,44 @@ public class PackageStorageService : IPackageStorageService
                 }
             }
         }        
-        return Task.FromResult(result.OrderByDescending(i => i.Version).ToList());
+        return result.OrderByDescending(i => i.Version).ToList();
     }
 
     public Task<List<string>> GetPackageVersions(string packageId)
     {
+        // First try exact case
         var packageDir = Path.Combine(_nuGetServer.PackagesPath, packageId);
+        
+        // If not found, try case insensitive search
         if (!Directory.Exists(packageDir))
-            return Task.FromResult(new List<string>());
+        {
+            var rootDir = new DirectoryInfo(_nuGetServer.PackagesPath);
+            var matchingDir = rootDir.GetDirectories()
+                .FirstOrDefault(dir => string.Equals(dir.Name, packageId, StringComparison.OrdinalIgnoreCase));
+                
+            if (matchingDir != null)
+            {
+                _logger.LogInformation("Found package directory with case-insensitive match: {ActualName}", matchingDir.Name);
+                packageDir = matchingDir.FullName;
+                packageId = matchingDir.Name; // Use the actual case of the directory
+            }
+            else
+            {
+                _logger.LogWarning("Package directory not found for {PackageId}", packageId);
+                return Task.FromResult(new List<string>());
+            }
+        }
 
-        return Task.FromResult(Directory.GetDirectories(packageDir)
-                        .Select(Path.GetFileName)
-                        .OrderBy(v => v)
-                        .ToList());
+        // Get directories and ensure they contain valid packages
+        var versions = Directory.GetDirectories(packageDir)
+            .Select(Path.GetFileName)
+            .Where(v => v != null && Directory.GetFiles(Path.Combine(packageDir, v), "*.nupkg").Any()) // Only return versions with nupkg files
+            .Select(v => v!) // Non-null assertion after filtering out null values
+            .OrderBy(v => v)
+            .ToList();
+            
+        _logger.LogInformation("Found versions for package {PackageId}: {@Versions}", packageId, versions);
+        return Task.FromResult(versions);
     }
 
     public Task<bool> PackageExists(string packageId, string version)
@@ -299,13 +388,8 @@ public class PackageStorageService : IPackageStorageService
                 return null;
             }
 
-            // Load download stats
-            var stats = await LoadDownloadStats();
-            var downloadCount = stats
-                .FirstOrDefault(s => 
-                    string.Equals(s.Id, packageId, StringComparison.OrdinalIgnoreCase) && 
-                    string.Equals(s.Version, version, StringComparison.OrdinalIgnoreCase))
-                ?.DownloadCount ?? 0;
+            // Get download count
+            var downloadCount = await GetDownloadCount(packageId, version);
 
             // Extract metadata with namespace support
             var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
@@ -321,12 +405,12 @@ public class PackageStorageService : IPackageStorageService
                 DownloadCount = downloadCount
             };
             
-            return Task.FromResult<NuGetPackageInfo?>(result);
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading metadata for {PackageId} {Version} from {NupkgPath}", packageId, version, nupkg);
-            return Task.FromResult<NuGetPackageInfo?>(null);
+            return null;
         }
     }
 

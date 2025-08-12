@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - 🐛 Fixed NuGet v3 service index format with proper @context property
+- 🐛 Fixed package version display in Visual Studio 2022 to show all versions, not just the latest
+- 🐛 Replaced hardcoded download counts with proper download tracking system
+- 🐛 Implemented case-insensitive package ID and version lookup
+- 🐛 Fixed NuGet v3 protocol compatibility for package metadata endpoints
+- 🐛 Added proper download tracking with per-version download count files
+- 🐛 Improved error handling and logging throughout the application
 - 🔄 Changed service type names to PascalCase for better compatibility
 - 🔍 Added query endpoint to complement the search endpoint (required by Visual Studio)
 - 🧩 Configured JSON serialization to maintain @ symbols in property names
