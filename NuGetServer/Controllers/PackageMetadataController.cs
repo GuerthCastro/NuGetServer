@@ -110,7 +110,6 @@ public class PackageMetadataController : ControllerBase
             // Log the JSON response for debugging
             var responseJson = JsonConvert.SerializeObject(response, Formatting.Indented);
             _logger.LogInformation("Registration response for {Id}: {Response}", id, responseJson);
-            };
 
             return Ok(response);
         }

@@ -10,7 +10,6 @@ using Newtonsoft.Json;
 namespace NuGetServer.Controllers;
 
 [ApiController]
-// Route for /v3 and /v3/
 [Route("v3")]
 public class PackageSearchController : ControllerBase
 {
@@ -88,7 +87,6 @@ public class PackageSearchController : ControllerBase
         {
             var allPackages = await _packageStorageService.GetPackagesWithMetadata();
             
-            // Group packages by ID to collect all versions
             var packagesByIdWithVersions = allPackages
                 .GroupBy(p => p.Id)
                 .ToDictionary(
@@ -96,44 +94,50 @@ public class PackageSearchController : ControllerBase
                     g => g.OrderByDescending(p => p.Version).ToList()
                 );
                 
-            return Ok(new
+            var response = new PackageDetailsResponse
             {
-                totalHits = packagesByIdWithVersions.Count,
-                data = packagesByIdWithVersions.Keys.Select(packageId =>
+                TotalHits = packagesByIdWithVersions.Count,
+                Data = new List<PackageDetail>()
+            };
+
+            foreach (var packageId in packagesByIdWithVersions.Keys)
+            {
+                var packageVersions = packagesByIdWithVersions[packageId];
+                var latestPackage = packageVersions.First();
+                
+                var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
+                var lowerId = latestPackage.Id.ToLowerInvariant();
+                
+                var packageDetail = new PackageDetail
                 {
-                    var packageVersions = packagesByIdWithVersions[packageId];
-                    var latestPackage = packageVersions.First(); // Already sorted by version desc
-                    
-                    var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
-                    var lowerId = latestPackage.Id.ToLowerInvariant();
-                    
-                    // This is the enhanced format that works with both Visual Studio 2022 and nuget.exe
-                    return new
-                    {
-                        @type = "Package",
-                        registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
-                        id = latestPackage.Id,
-                        version = latestPackage.Version,
-                        description = latestPackage.Description ?? "",
-                        summary = latestPackage.Description ?? "",
-                        title = latestPackage.Id,
-                        authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(','),
-                        iconUrl = "",
-                        licenseUrl = "",
-                        projectUrl = "",
-                        tags = new string[] { },
-                        totalDownloads = 0,
-                        verified = true,
-                        packageTypes = new[] { new { name = "Dependency", version = "" } },
-                        versions = packageVersions.Select(p => new { 
-                            @id = $"{baseUrl}/v3/registrations/{lowerId}/{p.Version}.json",
-                            version = p.Version,
-                            downloads = 0,
-                            @type = "PackageDetails"
-                        }).ToArray()
-                    };
-                })
-            });
+                    Type = "Package",
+                    Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+                    Id = latestPackage.Id,
+                    Version = latestPackage.Version,
+                    Description = latestPackage.Description ?? "",
+                    Summary = latestPackage.Description ?? "",
+                    Title = latestPackage.Id,
+                    Authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(','),
+                    IconUrl = "",
+                    LicenseUrl = "",
+                    ProjectUrl = "",
+                    Tags = Array.Empty<string>(),
+                    TotalDownloads = 0,
+                    Verified = true,
+                    PackageTypes = new List<PackageTypeInfo> { new PackageTypeInfo { Name = "Dependency", Version = "" } },
+                    Versions = packageVersions.Select(p => new VersionDetail 
+                    { 
+                        Id = $"{baseUrl}/v3/registrations/{lowerId}/{p.Version}.json",
+                        Version = p.Version,
+                        Downloads = 0,
+                        Type = "PackageDetails"
+                    }).ToList()
+                };
+                
+                response.Data.Add(packageDetail);
+            }
+            
+            return Ok(response);
         }
         catch (Exception ex)
         {
@@ -148,10 +152,10 @@ public class PackageSearchController : ControllerBase
         [FromQuery(Name = "q")] string? q = null,
         [FromQuery(Name = "skip")] int skip = 0,
         [FromQuery(Name = "take")] int take = 20,
-        [FromQuery(Name = "prerelease")] bool prerelease = false)
+        [FromQuery(Name = "prerelease")] bool prerelease = false,
+        [FromQuery(Name = "allVersions")] bool allVersions = false)
     {
-        // Reuse the query endpoint implementation for search endpoint
-        return await SearchPackages(q, skip, take, prerelease);
+        return await SearchPackages(q, skip, take, prerelease, allVersions);
     }
 
     [AllowAnonymous]
@@ -160,22 +164,19 @@ public class PackageSearchController : ControllerBase
         [FromQuery(Name = "q")] string? q = null,
         [FromQuery(Name = "skip")] int skip = 0,
         [FromQuery(Name = "take")] int take = 20,
-        [FromQuery(Name = "prerelease")] bool prerelease = false)
+        [FromQuery(Name = "prerelease")] bool prerelease = false,
+        [FromQuery(Name = "allVersions")] bool allVersions = false)
     {
         try
         {
-            // Get all packages with metadata
             var allPackages = await _packageStorageService.GetPackagesWithMetadata();
 
-            // Filter by query if provided
             if (!string.IsNullOrWhiteSpace(q))
                 allPackages = allPackages.Where(p => p.Id.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            // Filter out prereleases if not requested
             if (!prerelease)
                 allPackages = allPackages.Where(p => !p.Version.Contains('-')).ToList();
 
-            // Group packages by ID to collect all versions
             var packagesByIdWithVersions = allPackages
                 .GroupBy(p => p.Id)
                 .ToDictionary(
@@ -183,52 +184,96 @@ public class PackageSearchController : ControllerBase
                     g => g.OrderByDescending(p => p.Version).ToList()
                 );
 
-            // Create paginated result with full version history
             var paginated = packagesByIdWithVersions.Keys
                 .Skip(skip)
                 .Take(take)
                 .ToList();
 
-            // Use format that's compatible with both Visual Studio and nuget.exe
-            return Ok(new
+            var response = new PackageDetailsResponse
             {
-                totalHits = packagesByIdWithVersions.Count,
-                data = paginated.Select(packageId => 
+                TotalHits = packagesByIdWithVersions.Count,
+                Data = new List<PackageDetail>()
+            };
+
+            _logger.LogInformation($"Search requested with allVersions={allVersions}");
+
+            foreach (var packageId in paginated)
+            {
+                var packageVersions = packagesByIdWithVersions[packageId];
+                var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
+                var lowerId = packageId.ToLowerInvariant();
+                
+                if (allVersions)
                 {
-                    var packageVersions = packagesByIdWithVersions[packageId];
-                    var latestPackage = packageVersions.First(); // Already sorted by version desc
-                    
-                    // Use the specific format needed for NuGet client tools with enhanced compatibility for VS2022
-                    var baseUrl = _nuGetIndex.ServiceUrl.TrimEnd('/');
-                    var lowerId = latestPackage.Id.ToLowerInvariant();
-                    
-                    // This is the enhanced format that works with both Visual Studio 2022 and nuget.exe
-                    return new
+                    foreach (var package in packageVersions)
                     {
-                        @type = "Package",
-                        registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
-                        id = latestPackage.Id,
-                        version = latestPackage.Version,
-                        description = latestPackage.Description ?? "",
-                        summary = latestPackage.Description ?? "",
-                        title = latestPackage.Id,
-                        authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(','),
-                        iconUrl = "",
-                        licenseUrl = "",
-                        projectUrl = "",
-                        tags = new string[] { },
-                        totalDownloads = 0,
-                        verified = true,
-                        packageTypes = new[] { new { name = "Dependency", version = "" } },
-                        versions = packageVersions.Select(p => new { 
-                            @id = $"{baseUrl}/v3/registrations/{lowerId}/{p.Version}.json",
-                            version = p.Version,
-                            downloads = 0,
-                            @type = "PackageDetails"
-                        }).ToArray()
+                        var packageDetail = new PackageDetail
+                        {
+                            Type = "Package",
+                            Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+                            Id = package.Id,
+                            Version = package.Version,
+                            Description = package.Description ?? "",
+                            Summary = package.Description ?? "",
+                            Title = package.Id,
+                            Authors = string.IsNullOrEmpty(package.Authors) ? Array.Empty<string>() : package.Authors.Split(','),
+                            IconUrl = "",
+                            LicenseUrl = "",
+                            ProjectUrl = "",
+                            Tags = Array.Empty<string>(),
+                            TotalDownloads = package.DownloadCount,
+                            Verified = true,
+                            PackageTypes = new List<PackageTypeInfo> { new PackageTypeInfo { Name = "Dependency", Version = "" } },
+                            Versions = new List<VersionDetail>
+                            {
+                                new VersionDetail
+                                {
+                                    Id = $"{baseUrl}/v3/registrations/{lowerId}/{package.Version}.json",
+                                    Version = package.Version,
+                                    Downloads = package.DownloadCount,
+                                    Type = "PackageDetails"
+                                }
+                            }
+                        };
+                        
+                        response.Data.Add(packageDetail);
+                    }
+                }
+                else
+                {
+                    var latestPackage = packageVersions.First();
+                
+                    var packageDetail = new PackageDetail
+                    {
+                        Type = "Package",
+                        Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+                        Id = latestPackage.Id,
+                        Version = latestPackage.Version,
+                        Description = latestPackage.Description ?? "",
+                        Summary = latestPackage.Description ?? "",
+                        Title = latestPackage.Id,
+                        Authors = string.IsNullOrEmpty(latestPackage.Authors) ? Array.Empty<string>() : latestPackage.Authors.Split(','),
+                        IconUrl = "",
+                        LicenseUrl = "",
+                        ProjectUrl = "",
+                        Tags = Array.Empty<string>(),
+                        TotalDownloads = packageVersions.Sum(p => p.DownloadCount),
+                        Verified = true,
+                        PackageTypes = new List<PackageTypeInfo> { new PackageTypeInfo { Name = "Dependency", Version = "" } },
+                        Versions = packageVersions.Select(p => new VersionDetail 
+                        { 
+                            Id = $"{baseUrl}/v3/registrations/{lowerId}/{p.Version}.json",
+                            Version = p.Version,
+                            Downloads = p.DownloadCount,
+                            Type = "PackageDetails"
+                        }).ToList()
                     };
-                })
-            });
+                    
+                    response.Data.Add(packageDetail);
+                }
+            }
+            
+            return Ok(response);
         }
         catch (Exception ex)
         {
@@ -247,7 +292,14 @@ public class PackageSearchController : ControllerBase
             packages = packages.Where(p => p.Id.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
 
         var ids = packages.Select(p => p.Id).Distinct().Take(take).ToArray();
-        return Ok(new { totalHits = ids.Length, data = ids });
+        
+        var response = new AutocompleteResponse
+        {
+            TotalHits = ids.Length,
+            Data = ids
+        };
+        
+        return Ok(response);
     }
 
     [AllowAnonymous]
@@ -256,15 +308,14 @@ public class PackageSearchController : ControllerBase
     {
         _logger.LogInformation("Received request for package versions: {Id}", id);
         var versions = await _packageStorageService.GetPackageVersions(id);
-        _logger.LogInformation("Returning versions for package {Id}: {@Versions}", id, versions);
         Response.Headers.Append("Content-Type", "application/json");
         
-        // Debug response
-        var result = new { versions };
-        var json = JsonConvert.SerializeObject(result);
-        _logger.LogInformation("Response JSON: {Json}", json);
+        var response = new VersionsResponse
+        {
+            Versions = versions
+        };
         
-        return Ok(result);
+        return Ok(response);
     }
     
     [AllowAnonymous]
