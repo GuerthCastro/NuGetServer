@@ -1,5 +1,11 @@
 # NuGet Server
 
+## [2025-08-12] NuGet v3 Compliance and Visual Studio Multi-Version Fix
+
+- Registration endpoint now returns all package versions with correct canonical IDs and casing, ensuring full compatibility with Visual Studio 2022 and nuget.exe.
+- All endpoints strictly use DTOs, no anonymous objects, and all required fields are present.
+- Visual Studio and nuget.exe now display all historical versions in the version dropdown.
+
 A lightweight, self-hosted NuGet server built with ASP.NET Core (.NET 9). This server provides a private NuGet feed that supports pushing, searching, and downloading NuGet packages through standard NuGet client tools.
 
 ---

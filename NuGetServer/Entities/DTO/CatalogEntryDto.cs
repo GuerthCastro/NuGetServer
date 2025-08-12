@@ -7,6 +7,9 @@ namespace NuGetServer.Entities.DTO;
 public class CatalogEntryDto
 {
     [JsonProperty("@id")]
+    public string CanonicalId { get; set; } = string.Empty;
+
+    [JsonProperty("id")]
     public string Id { get; set; } = string.Empty;
 
     [JsonProperty("version")]

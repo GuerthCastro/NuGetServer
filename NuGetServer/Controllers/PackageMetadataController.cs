@@ -39,7 +39,7 @@ public class PackageMetadataController : ControllerBase
         foreach (var v in normalizedVersions)
         {
             var meta = await _packageStorageService.GetPackageMetadata(id, v);
-            var canonicalId = meta?.Id ?? id;
+            var canonicalId = meta?.Id ?? lowerId;
             var published = DateTimeOffset.UtcNow;
             leaves.Add(new RegistrationLeafDto
             {
@@ -48,7 +48,8 @@ public class PackageMetadataController : ControllerBase
                 Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
                 CatalogEntry = new CatalogEntryDto
                 {
-                    Id = canonicalId,
+                    CanonicalId = canonicalId,
+                    Id = id,
                     Version = v,
                     Listed = true,
                     Published = published

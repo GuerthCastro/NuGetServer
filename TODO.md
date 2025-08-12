@@ -3,7 +3,9 @@
 This document tracks immediate development tasks, bug fixes, and improvements for the NuGet Server project.
 
 
+
 ## ✅ Completed Items
+- [x] **NuGet v3 registration endpoint compliance** - All versions and correct casing/IDs for Visual Studio and nuget.exe
 
 - [x] **Implement real download tracking** - Replace hardcoded download counts with actual tracking
 - [x] **Fix package version display** - Make Visual Studio 2022 show all versions, not just the latest
