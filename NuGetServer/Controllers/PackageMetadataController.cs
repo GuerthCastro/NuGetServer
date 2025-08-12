@@ -34,10 +34,13 @@ public class PackageMetadataController : ControllerBase
             return NotFound();
         var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
         var lowerId = id.ToLowerInvariant();
-        var normalizedVersions = versions.Select(v => NuGet.Versioning.NuGetVersion.Parse(v).ToNormalizedString()).OrderBy(NuGet.Versioning.NuGetVersion.Parse).ToList();
+        var normalizedVersions = versions.Select(v => NuGetVersion.Parse(v).ToNormalizedString()).OrderBy(NuGetVersion.Parse).ToList();
         var leaves = new List<RegistrationLeafDto>();
         foreach (var v in normalizedVersions)
         {
+            var meta = await _packageStorageService.GetPackageMetadata(id, v);
+            var canonicalId = meta?.Id ?? id;
+            var published = DateTimeOffset.UtcNow;
             leaves.Add(new RegistrationLeafDto
             {
                 Type = "Package",
@@ -45,10 +48,10 @@ public class PackageMetadataController : ControllerBase
                 Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
                 CatalogEntry = new CatalogEntryDto
                 {
-                    Id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
+                    Id = canonicalId,
                     Version = v,
                     Listed = true,
-                    Published = System.DateTime.UtcNow.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss.fffffff'Z'")
+                    Published = published
                 }
             });
         }

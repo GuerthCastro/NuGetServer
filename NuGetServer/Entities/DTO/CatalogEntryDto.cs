@@ -16,5 +16,5 @@ public class CatalogEntryDto
     public bool Listed { get; set; }
 
     [JsonProperty("published")]
-    public string Published { get; set; } = string.Empty;
+    public DateTimeOffset Published { get; set; }
 }

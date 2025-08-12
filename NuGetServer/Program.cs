@@ -5,6 +5,12 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults.MimeTypes.Concat(new[] { "application/json" });
+});
+
 if (!builder.Environment.IsDevelopment())
 {
      builder.WebHost.UseUrls("http://0.0.0.0:8080;https://0.0.0.0:8081");
@@ -59,6 +65,8 @@ builder.Host
 var swaggerConfig = builder.Configuration.GetSection("Swagger");
 
 var app = builder.Build();
+
+app.UseResponseCompression();
 
 // Always enable Swagger UI for API documentation
 app.UseSwagger();
