@@ -120,13 +120,13 @@ public class PackageSearchController : ControllerBase
                         licenseUrl = "",
                         projectUrl = "",
                         tags = new string[] { },
-                        totalDownloads = packageVersions.Count * 10,
+                        totalDownloads = 0,
                         verified = true,
                         packageTypes = new[] { new { name = "Dependency", version = "" } },
                         versions = packageVersions.Select(p => new { 
                             @id = $"{baseUrl}/v3/registrations/{lowerId}/{p.Version}.json",
                             version = p.Version,
-                            downloads = 10,
+                            downloads = 0,
                             @type = "PackageDetails"
                         }).ToArray()
                     };
@@ -215,13 +215,13 @@ public class PackageSearchController : ControllerBase
                         licenseUrl = "",
                         projectUrl = "",
                         tags = new string[] { },
-                        totalDownloads = packageVersions.Count * 10,
+                        totalDownloads = 0,
                         verified = true,
                         packageTypes = new[] { new { name = "Dependency", version = "" } },
                         versions = packageVersions.Select(p => new { 
                             @id = $"{baseUrl}/v3/registrations/{lowerId}/{p.Version}.json",
                             version = p.Version,
-                            downloads = 10,
+                            downloads = 0,
                             @type = "PackageDetails"
                         }).ToArray()
                     };

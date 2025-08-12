@@ -63,6 +63,9 @@ namespace NuGetServer.Entities.DTO
 
         [JsonProperty("@type")]
         public string Type { get; set; } = "Package";
+        
+        [JsonProperty("listed")]
+        public bool Listed { get; set; } = true;
 
         [JsonProperty("catalogEntry")]
         public PackageCatalogEntry CatalogEntry { get; set; } = new PackageCatalogEntry();

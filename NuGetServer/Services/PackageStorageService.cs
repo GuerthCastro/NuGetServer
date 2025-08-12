@@ -321,7 +321,7 @@ public class PackageStorageService : IPackageStorageService
                 DownloadCount = downloadCount
             };
             
-            return result;
+            return Task.FromResult<NuGetPackageInfo?>(result);
         }
         catch (Exception ex)
         {

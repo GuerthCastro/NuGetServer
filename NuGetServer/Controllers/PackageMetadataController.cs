@@ -66,13 +66,13 @@ public class PackageMetadataController : ControllerBase
             }).ToList();
             
             // Wait for all metadata to be fetched
-            var registrationItems = new List<PackageItem>();
+                var registrationItems = new List<PackageItem>();
             foreach (var task in registrationItemTasks)
             {
-                registrationItems.Add(await task);
-            }
-
-            var response = new PackageRegistration
+                var item = await task;
+                item.Listed = true; // Make sure all versions are listed
+                registrationItems.Add(item);
+            }            var response = new PackageRegistration
             {
                 Id = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
                 Type = "catalog:CatalogRoot",
