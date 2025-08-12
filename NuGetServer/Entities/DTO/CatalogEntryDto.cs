@@ -14,4 +14,7 @@ public class CatalogEntryDto
 
     [JsonProperty("listed")]
     public bool Listed { get; set; }
+
+    [JsonProperty("published")]
+    public string Published { get; set; } = string.Empty;
 }

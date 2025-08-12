@@ -6,6 +6,9 @@ namespace NuGetServer.Entities.DTO;
 [ExcludeFromCodeCoverage]
 public class RegistrationLeafDto
 {
+    [JsonProperty("@type")]
+    public string Type { get; set; } = "Package";
+
     [JsonProperty("packageContent")]
     public string PackageContent { get; set; } = string.Empty;
 

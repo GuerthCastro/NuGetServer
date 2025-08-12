@@ -34,36 +34,43 @@ public class PackageMetadataController : ControllerBase
             return NotFound();
         var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
         var lowerId = id.ToLowerInvariant();
-        var normalizedVersions = versions.Select(v => NuGet.Versioning.NuGetVersion.Parse(v).ToNormalizedString()).ToList();
-        var leafTasks = normalizedVersions.Select(async v => {
-            var metadata = await _packageStorageService.GetPackageMetadata(id, v);
-            return new RegistrationLeafDto
+        var normalizedVersions = versions.Select(v => NuGet.Versioning.NuGetVersion.Parse(v).ToNormalizedString()).OrderBy(NuGet.Versioning.NuGetVersion.Parse).ToList();
+        var leaves = new List<RegistrationLeafDto>();
+        foreach (var v in normalizedVersions)
+        {
+            leaves.Add(new RegistrationLeafDto
             {
+                Type = "Package",
                 PackageContent = $"{baseUrl}/v3/v3-flatcontainer/{lowerId}/{v}/{lowerId}.{v}.nupkg",
                 Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
                 CatalogEntry = new CatalogEntryDto
                 {
                     Id = $"{baseUrl}/v3/catalog/{lowerId}/{v}.json",
                     Version = v,
-                    Listed = true
+                    Listed = true,
+                    Published = System.DateTime.UtcNow.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss.fffffff'Z'")
                 }
-            };
-        }).ToList();
-        var leaves = new List<RegistrationLeafDto>();
-        foreach (var t in leafTasks)
-            leaves.Add(await t);
+            });
+        }
+        var firstVersion = normalizedVersions.FirstOrDefault() ?? string.Empty;
+        var lastVersion = normalizedVersions.LastOrDefault() ?? string.Empty;
         var page = new RegistrationPageDto
         {
-            Lower = normalizedVersions.OrderBy(x => NuGet.Versioning.NuGetVersion.Parse(x)).FirstOrDefault() ?? "",
-            Upper = normalizedVersions.OrderByDescending(x => NuGet.Versioning.NuGetVersion.Parse(x)).FirstOrDefault() ?? "",
-            Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+            Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json#page/{firstVersion}/{lastVersion}",
+            Type = "catalog:CatalogPage",
+            Count = leaves.Count,
+            Lower = firstVersion,
+            Upper = lastVersion,
+            Parent = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
             Items = leaves
         };
         var dto = new RegistrationIndexDto
         {
-            Count = normalizedVersions.Count,
-            Items = new[] { page },
-            Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json"
+            Registration = $"{baseUrl}/v3/registrations/{lowerId}/index.json",
+            Type = "catalog:CatalogRoot",
+            Context = new RegistrationContext { Vocab = "http://schema.nuget.org/schema#", Base = baseUrl },
+            Count = 1,
+            Items = new[] { page }
         };
         return Ok(dto);
     }

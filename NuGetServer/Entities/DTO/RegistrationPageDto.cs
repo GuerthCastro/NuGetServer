@@ -21,6 +21,9 @@ public class RegistrationPageDto
     [JsonProperty("upper")]
     public string Upper { get; set; } = string.Empty;
 
+    [JsonProperty("parent")]
+    public string Parent { get; set; } = string.Empty;
+
     [JsonProperty("items")]
     public IReadOnlyList<RegistrationLeafDto> Items { get; set; } = [];
 }
