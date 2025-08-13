@@ -188,6 +188,42 @@ public class PackageStorageServiceTests : IDisposable
         metadata.Description.Should().Be("Test package");
     }
 
+    [Fact]
+    public async Task GetPackageMetadata_Should_Read_Nuspec_Info_With_Namespace()
+    {
+        // Arrange
+        var id = "Dragonfly.NamespaceTest";
+        var version = "2.1.0";
+        var packageDir = Path.Combine(_tempDir, id, version);
+        Directory.CreateDirectory(packageDir);
+
+        var nupkgPath = Path.Combine(packageDir, $"{id}.{version}.nupkg");
+        using (var zip = ZipFile.Open(nupkgPath, ZipArchiveMode.Create))
+        {
+            var nuspecEntry = zip.CreateEntry($"{id}.nuspec");
+            using var writer = new StreamWriter(nuspecEntry.Open());
+            await writer.WriteAsync($@"<?xml version=""1.0""?>
+                <package xmlns=""http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd"">
+                  <metadata>
+                    <id>{id}</id>
+                    <version>{version}</version>
+                    <authors>Guerth Castro</authors>
+                    <description>Test package with namespace</description>
+                  </metadata>
+                </package>");
+        }
+
+        // Act
+        var metadata = await _service.GetPackageMetadata(id, version);
+
+        // Assert
+        metadata.Should().NotBeNull();
+        metadata!.Id.Should().Be(id);
+        metadata.Version.Should().Be(version);
+        metadata.Authors.Should().Be("Guerth Castro");
+        metadata.Description.Should().Be("Test package with namespace");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDir))

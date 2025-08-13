@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace NuGetServer.Controllers;
 
 [ApiController]
-[Route("nuget")]
+[Route("v3")]
 public class PackagesController : ControllerBase
 {
     private readonly ILogger<PackagesController> _logger;
@@ -19,7 +19,10 @@ public class PackagesController : ControllerBase
     {
         _logger = logger;
         _serviceConfig = serviceConfig;
-        _serviceConfig.ServiceName = _serviceConfig.ServiceName.Replace("{controllerName}", GetType().Name);
+        if (_serviceConfig.ServiceName != null)
+        {
+            _serviceConfig.ServiceName = _serviceConfig.ServiceName.Replace("{controllerName}", GetType().Name);
+        }
         _nuGetServer = settings;
         _packageStorageService = packageStorageService;
     }

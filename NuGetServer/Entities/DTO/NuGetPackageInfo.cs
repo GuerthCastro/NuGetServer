@@ -10,4 +10,5 @@ public class NuGetPackageInfo
     public string DownloadUrl { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? Authors { get; set; }
+    public int DownloadCount { get; set; }
 }

@@ -2,6 +2,23 @@
 
 This document tracks immediate development tasks, bug fixes, and improvements for the NuGet Server project.
 
+
+
+## ✅ Completed Items
+- [x] **NuGet v3 registration endpoint compliance** - All versions and correct casing/IDs for Visual Studio and nuget.exe
+
+- [x] **Implement real download tracking** - Replace hardcoded download counts with actual tracking
+- [x] **Fix package version display** - Make Visual Studio 2022 show all versions, not just the latest
+- [x] **Case-insensitive package lookup** - Improve package search and retrieval with case-insensitive matching
+- [x] **Fix NuGet v3 protocol compatibility** - Ensure proper package metadata endpoints
+- [x] **Unify and improve package metadata extraction** - Always include metadata, namespace-aware parsing
+- [x] **Fix service index URL for Visual Studio compatibility** - Ensure `ServiceUrl` is set to public server root
+
+## 🆕 New/Planned
+- [ ] **Implement Registration API** - For full NuGet v3 protocol compliance
+- [ ] **Add advanced search filters and sorting**
+- [ ] **Symbol package (.snupkg) support**
+
 ## 🚨 High Priority (Immediate)
 
 ### Repository Setup
@@ -35,6 +52,9 @@ This document tracks immediate development tasks, bug fixes, and improvements fo
 - [ ] **Code quality analysis** - SonarQube or similar integration
 
 ### Features & Enhancements
+- [x] **Fixed NuGet v3 compatibility** - Properly formatted service index with @context property
+- [x] **Added query endpoint** - Required by Visual Studio for package discovery
+- [x] **Improved package version display** - Show all versions in search results
 - [ ] **Configuration validation** - Validate settings on startup
 - [ ] **Better error handling** - Standardize error responses
 - [ ] **Logging improvements** - Structured logging with correlation IDs

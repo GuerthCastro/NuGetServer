@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+
 ## [Unreleased]
+
+### Fixed
+- Registration endpoint now returns all package versions with correct canonical IDs and casing for Visual Studio/nuget.exe compatibility (2025-08-12)
+
+### Added
+- Unified and improved package metadata extraction (namespace-aware, always included in listings)
+- Improved error handling and logging for package metadata extraction
+
+### Changed
+- Service index URL (`NuGetIndex:ServiceUrl`) must now match the public server root (not `/nuget`) for Visual Studio/NuGet client compatibility
+
+### Fixed
+- Fixed `[Appserver003] The source does not have a Search service!` error by correcting service index resource URLs
+
+## [1.0.1] - 2025-08-15
 
 ### Added
 - Initial release of NuGet Server
@@ -16,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenAPI/Swagger documentation
 - Health check endpoints
 - Configurable storage and API keys
+- Raspberry Pi deployment guide with SSL certificate setup
 
 ### Changed
 
@@ -24,6 +42,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- 🐛 Fixed NuGet v3 service index format with proper @context property
+- 🐛 Fixed package version display in Visual Studio 2022 to show all versions, not just the latest
+- 🐛 Replaced hardcoded download counts with proper download tracking system
+- 🐛 Implemented case-insensitive package ID and version lookup
+- 🐛 Fixed NuGet v3 protocol compatibility for package metadata endpoints
+- 🐛 Added proper download tracking with per-version download count files
+- 🐛 Improved error handling and logging throughout the application
+- 🔄 Changed service type names to PascalCase for better compatibility
+- 🔍 Added query endpoint to complement the search endpoint (required by Visual Studio)
+- 🧩 Configured JSON serialization to maintain @ symbols in property names
+- 📦 Modified metadata controller route from "v3/metadata" to "v3/registrations"
+- 📋 Improved search response to include all package versions, not just the latest one
+- 🔢 Fixed version history display in Visual Studio and nuget.exe by adding download count to versions
+- 🗃️ Updated list endpoint to group packages by ID with proper version history
 
 ### Security
 
