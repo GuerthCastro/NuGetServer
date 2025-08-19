@@ -3,7 +3,6 @@ using NuGetServer.Entities.DTO;
 using NuGetServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NuGetServer.Entities.DTO;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
@@ -16,13 +15,13 @@ public class PackageMetadataController : ControllerBase
 {
     private readonly IPackageStorageService _packageStorageService;
     private readonly ILogger<PackageMetadataController> _logger;
+    private readonly NuGetIndex _nuGetIndex;
 
-    public PackageMetadataController(
-        IPackageStorageService packageStorageService,
-        ILogger<PackageMetadataController> logger)
+    public PackageMetadataController(IPackageStorageService packageStorageService, ILogger<PackageMetadataController> logger, NuGetIndex nuGetIndex)
     {
         _packageStorageService = packageStorageService;
         _logger = logger;
+        _nuGetIndex = nuGetIndex;
     }
 
     [AllowAnonymous]
@@ -32,7 +31,7 @@ public class PackageMetadataController : ControllerBase
         var versions = await _packageStorageService.GetPackageVersions(id);
         if (versions == null || !versions.Any())
             return NotFound();
-        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        var baseUrl = _nuGetIndex.BaseUrl;
         var lowerId = id.ToLowerInvariant();
         var normalizedVersions = versions.Select(v => NuGetVersion.Parse(v).ToNormalizedString()).OrderBy(NuGetVersion.Parse).ToList();
         var leaves = new List<RegistrationLeafDto>();
