@@ -1,11 +1,9 @@
-using NuGet.Versioning;
-using NuGetServer.Entities.DTO;
-using NuGetServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Collections.Generic;
-using System.Linq;
-using Newtonsoft.Json;
+using NuGet.Versioning;
+using NuGetServer.Entities.Config;
+using NuGetServer.Entities.DTO;
+using NuGetServer.Services;
 
 namespace NuGetServer.Controllers;
 
@@ -31,7 +29,7 @@ public class PackageMetadataController : ControllerBase
         var versions = await _packageStorageService.GetPackageVersions(id);
         if (versions == null || !versions.Any())
             return NotFound();
-        var baseUrl = _nuGetIndex.BaseUrl;
+        var baseUrl = _nuGetIndex.ServiceUrl;
         var lowerId = id.ToLowerInvariant();
         var normalizedVersions = versions.Select(v => NuGetVersion.Parse(v).ToNormalizedString()).OrderBy(NuGetVersion.Parse).ToList();
         var leaves = new List<RegistrationLeafDto>();
